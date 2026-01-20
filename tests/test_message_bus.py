@@ -437,7 +437,8 @@ class TestTaskManager:
         result = await task_manager.hard_cancel("task-1")
         assert result is True  # Returns True but doesn't cancel
 
-    def test_cleanup_task(self, task_manager: TaskManager):
+    @pytest.mark.asyncio
+    async def test_cleanup_task(self, task_manager: TaskManager):
         """Test task cleanup."""
         task_manager.tasks["task-1"] = asyncio.create_task(asyncio.sleep(0))
         task_manager._cancel_events["task-1"] = asyncio.Event()

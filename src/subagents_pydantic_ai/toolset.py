@@ -78,7 +78,7 @@ def _compile_subagent(
 
     # Register toolsets
     for ts in toolsets:
-        agent._register_toolset(ts)
+        agent._register_toolset(ts)  # type: ignore[attr-defined]
 
     return CompiledSubAgent(
         name=config["name"],
@@ -116,7 +116,8 @@ def _create_ask_parent_toolset() -> FunctionToolset[Any]:
 
         ask_callback = state.get("ask_callback")
         if ask_callback:
-            return await ask_callback(question)
+            result: str = await ask_callback(question)
+            return result
 
         message_bus = state.get("message_bus")
         task_id = state.get("task_id")
@@ -213,7 +214,7 @@ def create_subagent_toolset(
     task_manager = TaskManager(message_bus=message_bus)
 
     # Build available subagents description for tool docstring
-    subagent_list = "\n".join(f"- {name}: {c['description']}" for name, c in compiled.items())
+    subagent_list = "\n".join(f"- {name}: {c.description}" for name, c in compiled.items())
 
     toolset: FunctionToolset[Any] = FunctionToolset(id=id or "subagents")
 
@@ -256,8 +257,8 @@ def create_subagent_toolset(
             return f"Error: Unknown subagent '{subagent_type}'. Available: {available}"
 
         subagent = compiled[subagent_type]
-        config = subagent["config"]
-        agent = subagent["agent"]
+        config = subagent.config
+        agent = subagent.agent
 
         if agent is None:
             return f"Error: Subagent '{subagent_type}' is not properly initialized"
@@ -270,7 +271,7 @@ def create_subagent_toolset(
         if toolsets_factory:
             runtime_toolsets = toolsets_factory(subagent_deps)
             for ts in runtime_toolsets:
-                agent._register_toolset(ts)
+                agent._register_toolset(ts)  # type: ignore[attr-defined]
 
         # Generate task ID
         task_id = str(uuid.uuid4())[:8]

@@ -180,7 +180,7 @@ class TestTaskHandle:
 
 
 class TestCompiledSubAgent:
-    """Tests for CompiledSubAgent TypedDict."""
+    """Tests for CompiledSubAgent dataclass."""
 
     def test_compiled_subagent_creation(self):
         """Test creating a CompiledSubAgent."""
@@ -194,9 +194,9 @@ class TestCompiledSubAgent:
             description="Test",
             config=config,
         )
-        assert compiled["name"] == "test"
-        assert compiled["description"] == "Test"
-        assert compiled["config"] == config
+        assert compiled.name == "test"
+        assert compiled.description == "Test"
+        assert compiled.config == config
 
     def test_compiled_subagent_with_agent(self):
         """Test CompiledSubAgent with agent instance."""
@@ -212,7 +212,7 @@ class TestCompiledSubAgent:
             agent=mock_agent,
             config=config,
         )
-        assert compiled["agent"] is mock_agent
+        assert compiled.agent is mock_agent
 
 
 class TestTaskPriority:

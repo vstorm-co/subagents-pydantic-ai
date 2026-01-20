@@ -160,14 +160,14 @@ def create_agent_factory_toolset(
             if toolsets_factory:
                 runtime_toolsets = toolsets_factory(ctx.deps)
                 for ts in runtime_toolsets:
-                    agent._register_toolset(ts)
+                    agent._register_toolset(ts)  # type: ignore[attr-defined]
             # Otherwise, apply toolsets from capabilities
             elif capabilities and capabilities_map:
                 for cap_name in capabilities:
                     cap_factory = capabilities_map[cap_name]
                     cap_toolsets = cap_factory(ctx.deps)
                     for ts in cap_toolsets:
-                        agent._register_toolset(ts)
+                        agent._register_toolset(ts)  # type: ignore[attr-defined]
 
             registry.register(config, agent)
 

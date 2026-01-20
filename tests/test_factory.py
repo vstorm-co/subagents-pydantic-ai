@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Any
+from unittest.mock import MagicMock, patch
 
 import pytest
 from pydantic_ai.toolsets import FunctionToolset
@@ -35,7 +36,7 @@ class TestCreateAgentFactoryToolset:
         """Test toolset creation."""
         toolset = create_agent_factory_toolset(registry=registry)
 
-        tool_names = [t.name for t in toolset]
+        tool_names = list(toolset.tools.keys())
         assert "create_agent" in tool_names
         assert "list_agents" in tool_names
         assert "remove_agent" in tool_names
@@ -61,20 +62,18 @@ class TestCreateAgentFactoryToolset:
     async def test_create_agent_success(self, registry: DynamicAgentRegistry):
         """Test successful agent creation."""
         toolset = create_agent_factory_toolset(registry=registry)
-
-        create_tool = None
-        for tool in toolset:
-            if tool.name == "create_agent":
-                create_tool = tool
-                break
+        create_tool = toolset.tools["create_agent"]
 
         ctx = MockRunContext(deps=MockDeps())
-        result = await create_tool.function(
-            ctx,
-            name="test-agent",
-            description="A test agent",
-            instructions="Do testing",
-        )
+
+        with patch("subagents_pydantic_ai.factory.Agent") as mock_agent_class:
+            mock_agent_class.return_value = MagicMock()
+            result = await create_tool.function(
+                ctx,
+                name="test-agent",
+                description="A test agent",
+                instructions="Do testing",
+            )
 
         assert "created successfully" in result
         assert registry.exists("test-agent")
@@ -83,12 +82,7 @@ class TestCreateAgentFactoryToolset:
     async def test_create_agent_invalid_name(self, registry: DynamicAgentRegistry):
         """Test agent creation with invalid name."""
         toolset = create_agent_factory_toolset(registry=registry)
-
-        create_tool = None
-        for tool in toolset:
-            if tool.name == "create_agent":
-                create_tool = tool
-                break
+        create_tool = toolset.tools["create_agent"]
 
         ctx = MockRunContext(deps=MockDeps())
 
@@ -114,30 +108,28 @@ class TestCreateAgentFactoryToolset:
     async def test_create_agent_duplicate(self, registry: DynamicAgentRegistry):
         """Test creating duplicate agent fails."""
         toolset = create_agent_factory_toolset(registry=registry)
-
-        create_tool = None
-        for tool in toolset:
-            if tool.name == "create_agent":
-                create_tool = tool
-                break
+        create_tool = toolset.tools["create_agent"]
 
         ctx = MockRunContext(deps=MockDeps())
 
-        # Create first agent
-        await create_tool.function(
-            ctx,
-            name="test-agent",
-            description="Test",
-            instructions="Test",
-        )
+        with patch("subagents_pydantic_ai.factory.Agent") as mock_agent_class:
+            mock_agent_class.return_value = MagicMock()
 
-        # Try to create duplicate
-        result = await create_tool.function(
-            ctx,
-            name="test-agent",
-            description="Test",
-            instructions="Test",
-        )
+            # Create first agent
+            await create_tool.function(
+                ctx,
+                name="test-agent",
+                description="Test",
+                instructions="Test",
+            )
+
+            # Try to create duplicate
+            result = await create_tool.function(
+                ctx,
+                name="test-agent",
+                description="Test",
+                instructions="Test",
+            )
 
         assert "Error" in result
         assert "already exists" in result
@@ -149,12 +141,7 @@ class TestCreateAgentFactoryToolset:
             registry=registry,
             allowed_models=["openai:gpt-4", "openai:gpt-3.5-turbo"],
         )
-
-        create_tool = None
-        for tool in toolset:
-            if tool.name == "create_agent":
-                create_tool = tool
-                break
+        create_tool = toolset.tools["create_agent"]
 
         ctx = MockRunContext(deps=MockDeps())
         result = await create_tool.function(
@@ -187,21 +174,22 @@ class TestCreateAgentFactoryToolset:
                 "filesystem": mock_capability_factory,
             },
         )
-
-        create_tool = None
-        for tool in toolset:
-            if tool.name == "create_agent":
-                create_tool = tool
-                break
+        create_tool = toolset.tools["create_agent"]
 
         ctx = MockRunContext(deps=MockDeps())
-        result = await create_tool.function(
-            ctx,
-            name="test-agent",
-            description="Test",
-            instructions="Test",
-            capabilities=["filesystem"],
-        )
+
+        with patch("subagents_pydantic_ai.factory.Agent") as mock_agent_class:
+            mock_agent = MagicMock()
+            mock_agent._register_toolset = MagicMock()
+            mock_agent_class.return_value = mock_agent
+
+            result = await create_tool.function(
+                ctx,
+                name="test-agent",
+                description="Test",
+                instructions="Test",
+                capabilities=["filesystem"],
+            )
 
         assert "created successfully" in result
         assert "filesystem" in result
@@ -215,12 +203,7 @@ class TestCreateAgentFactoryToolset:
                 "filesystem": lambda deps: [],
             },
         )
-
-        create_tool = None
-        for tool in toolset:
-            if tool.name == "create_agent":
-                create_tool = tool
-                break
+        create_tool = toolset.tools["create_agent"]
 
         ctx = MockRunContext(deps=MockDeps())
         result = await create_tool.function(
@@ -246,20 +229,21 @@ class TestCreateAgentFactoryToolset:
             registry=registry,
             toolsets_factory=mock_factory,
         )
-
-        create_tool = None
-        for tool in toolset:
-            if tool.name == "create_agent":
-                create_tool = tool
-                break
+        create_tool = toolset.tools["create_agent"]
 
         ctx = MockRunContext(deps=MockDeps())
-        result = await create_tool.function(
-            ctx,
-            name="test-agent",
-            description="Test",
-            instructions="Test",
-        )
+
+        with patch("subagents_pydantic_ai.factory.Agent") as mock_agent_class:
+            mock_agent = MagicMock()
+            mock_agent._register_toolset = MagicMock()
+            mock_agent_class.return_value = mock_agent
+
+            result = await create_tool.function(
+                ctx,
+                name="test-agent",
+                description="Test",
+                instructions="Test",
+            )
 
         assert "created successfully" in result
 
@@ -267,12 +251,7 @@ class TestCreateAgentFactoryToolset:
     async def test_list_agents_empty(self, registry: DynamicAgentRegistry):
         """Test listing agents when empty."""
         toolset = create_agent_factory_toolset(registry=registry)
-
-        list_tool = None
-        for tool in toolset:
-            if tool.name == "list_agents":
-                list_tool = tool
-                break
+        list_tool = toolset.tools["list_agents"]
 
         ctx = MockRunContext(deps=MockDeps())
         result = await list_tool.function(ctx)
@@ -283,30 +262,26 @@ class TestCreateAgentFactoryToolset:
     async def test_list_agents_with_agents(self, registry: DynamicAgentRegistry):
         """Test listing agents when some exist."""
         toolset = create_agent_factory_toolset(registry=registry)
-
-        # First create some agents
-        create_tool = None
-        list_tool = None
-        for tool in toolset:
-            if tool.name == "create_agent":
-                create_tool = tool
-            if tool.name == "list_agents":
-                list_tool = tool
+        create_tool = toolset.tools["create_agent"]
+        list_tool = toolset.tools["list_agents"]
 
         ctx = MockRunContext(deps=MockDeps())
 
-        await create_tool.function(
-            ctx,
-            name="agent-1",
-            description="First agent",
-            instructions="Do stuff",
-        )
-        await create_tool.function(
-            ctx,
-            name="agent-2",
-            description="Second agent",
-            instructions="Do more stuff",
-        )
+        with patch("subagents_pydantic_ai.factory.Agent") as mock_agent_class:
+            mock_agent_class.return_value = MagicMock()
+
+            await create_tool.function(
+                ctx,
+                name="agent-1",
+                description="First agent",
+                instructions="Do stuff",
+            )
+            await create_tool.function(
+                ctx,
+                name="agent-2",
+                description="Second agent",
+                instructions="Do more stuff",
+            )
 
         result = await list_tool.function(ctx)
 
@@ -318,24 +293,21 @@ class TestCreateAgentFactoryToolset:
     async def test_remove_agent_success(self, registry: DynamicAgentRegistry):
         """Test removing agent successfully."""
         toolset = create_agent_factory_toolset(registry=registry)
-
-        create_tool = None
-        remove_tool = None
-        for tool in toolset:
-            if tool.name == "create_agent":
-                create_tool = tool
-            if tool.name == "remove_agent":
-                remove_tool = tool
+        create_tool = toolset.tools["create_agent"]
+        remove_tool = toolset.tools["remove_agent"]
 
         ctx = MockRunContext(deps=MockDeps())
 
-        # Create agent
-        await create_tool.function(
-            ctx,
-            name="test-agent",
-            description="Test",
-            instructions="Test",
-        )
+        with patch("subagents_pydantic_ai.factory.Agent") as mock_agent_class:
+            mock_agent_class.return_value = MagicMock()
+
+            # Create agent
+            await create_tool.function(
+                ctx,
+                name="test-agent",
+                description="Test",
+                instructions="Test",
+            )
 
         # Remove agent
         result = await remove_tool.function(ctx, "test-agent")
@@ -347,12 +319,7 @@ class TestCreateAgentFactoryToolset:
     async def test_remove_agent_not_found(self, registry: DynamicAgentRegistry):
         """Test removing non-existent agent."""
         toolset = create_agent_factory_toolset(registry=registry)
-
-        remove_tool = None
-        for tool in toolset:
-            if tool.name == "remove_agent":
-                remove_tool = tool
-                break
+        remove_tool = toolset.tools["remove_agent"]
 
         ctx = MockRunContext(deps=MockDeps())
         result = await remove_tool.function(ctx, "nonexistent")
@@ -364,25 +331,22 @@ class TestCreateAgentFactoryToolset:
     async def test_get_agent_info_success(self, registry: DynamicAgentRegistry):
         """Test getting agent info successfully."""
         toolset = create_agent_factory_toolset(registry=registry)
-
-        create_tool = None
-        info_tool = None
-        for tool in toolset:
-            if tool.name == "create_agent":
-                create_tool = tool
-            if tool.name == "get_agent_info":
-                info_tool = tool
+        create_tool = toolset.tools["create_agent"]
+        info_tool = toolset.tools["get_agent_info"]
 
         ctx = MockRunContext(deps=MockDeps())
 
-        # Create agent
-        await create_tool.function(
-            ctx,
-            name="test-agent",
-            description="A test agent for testing",
-            instructions="You are a test agent that tests things.",
-            can_ask_questions=False,
-        )
+        with patch("subagents_pydantic_ai.factory.Agent") as mock_agent_class:
+            mock_agent_class.return_value = MagicMock()
+
+            # Create agent
+            await create_tool.function(
+                ctx,
+                name="test-agent",
+                description="A test agent for testing",
+                instructions="You are a test agent that tests things.",
+                can_ask_questions=False,
+            )
 
         # Get info
         result = await info_tool.function(ctx, "test-agent")
@@ -396,12 +360,7 @@ class TestCreateAgentFactoryToolset:
     async def test_get_agent_info_not_found(self, registry: DynamicAgentRegistry):
         """Test getting info for non-existent agent."""
         toolset = create_agent_factory_toolset(registry=registry)
-
-        info_tool = None
-        for tool in toolset:
-            if tool.name == "get_agent_info":
-                info_tool = tool
-                break
+        info_tool = toolset.tools["get_agent_info"]
 
         ctx = MockRunContext(deps=MockDeps())
         result = await info_tool.function(ctx, "nonexistent")
@@ -413,25 +372,22 @@ class TestCreateAgentFactoryToolset:
     async def test_get_agent_info_long_instructions(self, registry: DynamicAgentRegistry):
         """Test getting info for agent with long instructions."""
         toolset = create_agent_factory_toolset(registry=registry)
-
-        create_tool = None
-        info_tool = None
-        for tool in toolset:
-            if tool.name == "create_agent":
-                create_tool = tool
-            if tool.name == "get_agent_info":
-                info_tool = tool
+        create_tool = toolset.tools["create_agent"]
+        info_tool = toolset.tools["get_agent_info"]
 
         ctx = MockRunContext(deps=MockDeps())
 
-        # Create agent with long instructions
-        long_instructions = "A" * 1000
-        await create_tool.function(
-            ctx,
-            name="verbose-agent",
-            description="Verbose agent",
-            instructions=long_instructions,
-        )
+        with patch("subagents_pydantic_ai.factory.Agent") as mock_agent_class:
+            mock_agent_class.return_value = MagicMock()
+
+            # Create agent with long instructions
+            long_instructions = "A" * 1000
+            await create_tool.function(
+                ctx,
+                name="verbose-agent",
+                description="Verbose agent",
+                instructions=long_instructions,
+            )
 
         # Get info
         result = await info_tool.function(ctx, "verbose-agent")
@@ -445,30 +401,28 @@ class TestCreateAgentFactoryToolset:
         """Test creating agent when max limit reached."""
         registry = DynamicAgentRegistry(max_agents=1)
         toolset = create_agent_factory_toolset(registry=registry, max_agents=1)
-
-        create_tool = None
-        for tool in toolset:
-            if tool.name == "create_agent":
-                create_tool = tool
-                break
+        create_tool = toolset.tools["create_agent"]
 
         ctx = MockRunContext(deps=MockDeps())
 
-        # Create first agent
-        await create_tool.function(
-            ctx,
-            name="agent-1",
-            description="First",
-            instructions="First",
-        )
+        with patch("subagents_pydantic_ai.factory.Agent") as mock_agent_class:
+            mock_agent_class.return_value = MagicMock()
 
-        # Try to create second agent
-        result = await create_tool.function(
-            ctx,
-            name="agent-2",
-            description="Second",
-            instructions="Second",
-        )
+            # Create first agent
+            await create_tool.function(
+                ctx,
+                name="agent-1",
+                description="First",
+                instructions="First",
+            )
+
+            # Try to create second agent
+            result = await create_tool.function(
+                ctx,
+                name="agent-2",
+                description="Second",
+                instructions="Second",
+            )
 
         assert "Error" in result
         assert "Maximum" in result

@@ -225,17 +225,24 @@ class TaskHandle:
     pending_question: str | None = None
 
 
-class CompiledSubAgent(TypedDict):
+@dataclass
+class CompiledSubAgent:
     """A pre-compiled subagent ready for use.
 
     After processing SubAgentConfig, the toolset creates a CompiledSubAgent
     that includes the actual agent instance.
+
+    Attributes:
+        name: Unique identifier for the subagent.
+        description: Brief description of the subagent's purpose.
+        agent: The actual agent instance.
+        config: The original configuration used to create this agent.
     """
 
     name: str
     description: str
-    agent: NotRequired[object]  # Agent instance - typed as object to avoid circular imports
     config: SubAgentConfig
+    agent: object | None = None  # Agent instance - typed as object to avoid circular imports
 
 
 def decide_execution_mode(
