@@ -247,9 +247,7 @@ class TestCreateSubagentToolset:
                 break
 
         ctx = MockRunContext(deps=MockDeps())
-        result = await task_tool.function(
-            ctx, "do something", "nonexistent", "sync"
-        )
+        result = await task_tool.function(ctx, "do something", "nonexistent", "sync")
 
         assert "Error" in result
         assert "Unknown subagent" in result

@@ -213,9 +213,7 @@ def create_subagent_toolset(
     task_manager = TaskManager(message_bus=message_bus)
 
     # Build available subagents description for tool docstring
-    subagent_list = "\n".join(
-        f"- {name}: {c['description']}" for name, c in compiled.items()
-    )
+    subagent_list = "\n".join(f"- {name}: {c['description']}" for name, c in compiled.items())
 
     toolset: FunctionToolset[Any] = FunctionToolset(id=id or "subagents")
 
@@ -280,8 +278,7 @@ def create_subagent_toolset(
         # Resolve mode if "auto"
         if mode == "auto":
             characteristics = TaskCharacteristics(
-                estimated_complexity=complexity
-                or config.get("typical_complexity", "moderate"),
+                estimated_complexity=complexity or config.get("typical_complexity", "moderate"),
                 requires_user_context=requires_user_context
                 or config.get("typically_needs_context", False),
                 may_need_clarification=may_need_clarification,
@@ -413,7 +410,9 @@ def create_subagent_toolset(
         for tid in active_ids:
             handle = task_manager.get_handle(tid)
             if handle:
-                lines.append(f"- {tid}: {handle.subagent_name} ({handle.status}) - {handle.description[:50]}...")
+                lines.append(
+                    f"- {tid}: {handle.subagent_name} ({handle.status}) - {handle.description[:50]}..."
+                )
 
         return "\n".join(lines)
 

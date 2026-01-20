@@ -442,8 +442,4 @@ class TaskManager:
         Returns:
             List of task IDs for tasks that haven't completed.
         """
-        return [
-            task_id
-            for task_id, task in self.tasks.items()
-            if not task.done()
-        ]
+        return [task_id for task_id, task in self.tasks.items() if not task.done()]

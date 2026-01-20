@@ -137,9 +137,7 @@ class TestInMemoryMessageBus:
             await message_bus.answer(original, "answer")
 
     @pytest.mark.asyncio
-    async def test_answer_without_correlation_sends_to_queue(
-        self, message_bus: InMemoryMessageBus
-    ):
+    async def test_answer_without_correlation_sends_to_queue(self, message_bus: InMemoryMessageBus):
         """Test answer without pending future sends to queue."""
         sender_queue = message_bus.register_agent("sender")
         message_bus.register_agent("receiver")

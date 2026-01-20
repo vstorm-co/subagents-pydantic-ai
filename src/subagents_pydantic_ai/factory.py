@@ -79,9 +79,7 @@ def create_agent_factory_toolset(
 
     # Format allowed models for docstring
     models_desc = (
-        f"Allowed models: {', '.join(allowed_models)}"
-        if allowed_models
-        else "Any model is allowed"
+        f"Allowed models: {', '.join(allowed_models)}" if allowed_models else "Any model is allowed"
     )
 
     # Format available capabilities for docstring

@@ -235,9 +235,7 @@ class TestCreateAgentFactoryToolset:
         assert "Unknown capabilities" in result
 
     @pytest.mark.asyncio
-    async def test_create_agent_with_toolsets_factory(
-        self, registry: DynamicAgentRegistry
-    ):
+    async def test_create_agent_with_toolsets_factory(self, registry: DynamicAgentRegistry):
         """Test creating agent with toolsets_factory."""
 
         def mock_factory(deps: MockDeps) -> list[FunctionToolset[Any]]:

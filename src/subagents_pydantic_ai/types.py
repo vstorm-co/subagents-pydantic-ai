@@ -113,6 +113,7 @@ class TaskCharacteristics:
     can_run_independently: bool = True
     may_need_clarification: bool = False
 
+
 ToolsetFactory = Callable[[Any], list[Any]]
 """Factory function that creates toolsets for a subagent.
 
@@ -284,10 +285,7 @@ def decide_execution_mode(
         return "sync"
 
     # Prefer async for complex, independent tasks
-    if (
-        characteristics.estimated_complexity == "complex"
-        and characteristics.can_run_independently
-    ):
+    if characteristics.estimated_complexity == "complex" and characteristics.can_run_independently:
         return "async"
 
     # Simple tasks - sync is fine

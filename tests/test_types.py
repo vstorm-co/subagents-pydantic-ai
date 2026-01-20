@@ -291,9 +291,7 @@ class TestDecideExecutionMode:
     def test_config_preferred_mode_sync(self):
         """Test config-level sync preference."""
         chars = TaskCharacteristics(estimated_complexity="complex")
-        config = SubAgentConfig(
-            name="test", description="", instructions="", preferred_mode="sync"
-        )
+        config = SubAgentConfig(name="test", description="", instructions="", preferred_mode="sync")
         result = decide_execution_mode(chars, config)
         assert result == "sync"
 
@@ -380,9 +378,7 @@ class TestDecideExecutionMode:
     def test_force_mode_overrides_config_preference(self):
         """Test that force_mode overrides config preference."""
         chars = TaskCharacteristics()
-        config = SubAgentConfig(
-            name="test", description="", instructions="", preferred_mode="sync"
-        )
+        config = SubAgentConfig(name="test", description="", instructions="", preferred_mode="sync")
         result = decide_execution_mode(chars, config, force_mode="async")
         assert result == "async"
 
