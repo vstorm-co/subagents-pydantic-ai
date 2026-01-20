@@ -1,42 +1,67 @@
 # subagents-pydantic-ai
 
+<p style="font-size: 1.3em; color: #888; margin-top: -0.5em;">
+Subagent delegation toolset for pydantic-ai agents
+</p>
+
 [![PyPI version](https://img.shields.io/pypi/v/subagents-pydantic-ai.svg)](https://pypi.org/project/subagents-pydantic-ai/)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![CI](https://github.com/vstorm-co/subagents-pydantic-ai/actions/workflows/ci.yml/badge.svg)](https://github.com/vstorm-co/subagents-pydantic-ai/actions/workflows/ci.yml)
 [![Coverage Status](https://coveralls.io/repos/github/vstorm-co/subagents-pydantic-ai/badge.svg?branch=main)](https://coveralls.io/github/vstorm-co/subagents-pydantic-ai?branch=main)
+[![python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue)](https://www.python.org/)
+[![license](https://img.shields.io/badge/license-MIT-green)](https://opensource.org/licenses/MIT)
 
-Subagent delegation toolset for [pydantic-ai](https://github.com/pydantic/pydantic-ai) with dual-mode execution.
+---
 
-> **Looking for a complete agent framework?** Check out [pydantic-deep](https://github.com/vstorm-co/pydantic-deep) - a full-featured agent framework with planning, subagents, and skills system.
+**subagents-pydantic-ai** provides a toolset that enables your [pydantic-ai](https://ai.pydantic.dev/) agents to delegate tasks to specialized subagents. Give your AI a team of specialists it can call upon.
 
-> **Need file operations?** Check out [pydantic-ai-backend](https://github.com/vstorm-co/pydantic-ai-backend) - file storage and sandbox backends for pydantic-ai agents.
+## Why use subagents-pydantic-ai?
 
-## Documentation
+When building complex [pydantic-ai](https://ai.pydantic.dev/) agents, a single agent can become overwhelmed. **subagents-pydantic-ai** lets you:
 
-**[Full Documentation](https://vstorm-co.github.io/subagents-pydantic-ai/)** - Installation, concepts, examples, and API reference.
+<div class="feature-grid">
+<div class="feature-card">
+<h3>🎯 Specialize</h3>
+<p>Create focused subagents: researcher, writer, coder, reviewer. Each with its own system prompt and capabilities.</p>
+</div>
+
+<div class="feature-card">
+<h3>⚡ Dual-Mode Execution</h3>
+<p>Run tasks sync (blocking) or async (background). The parent agent decides based on the task.</p>
+</div>
+
+<div class="feature-card">
+<h3>🔧 Dynamic Creation</h3>
+<p>Create specialized agents at runtime. No need to define everything upfront.</p>
+</div>
+
+<div class="feature-card">
+<h3>💬 Communication</h3>
+<p>Subagents can ask the parent questions. Parent can answer, check status, or cancel tasks.</p>
+</div>
+</div>
 
 ## Architecture
 
 ```mermaid
 %%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#6366f1', 'primaryTextColor': '#fff', 'primaryBorderColor': '#4f46e5', 'lineColor': '#94a3b8', 'secondaryColor': '#22c55e', 'tertiaryColor': '#1e293b', 'background': '#0f172a', 'mainBkg': '#1e293b', 'textColor': '#e2e8f0', 'nodeTextColor': '#e2e8f0'}}}%%
-flowchart LR
-    subgraph parent [" Parent Agent "]
+flowchart TB
+    subgraph parent [" 🤖 Parent Agent "]
         direction TB
-        PA["🤖 pydantic-ai Agent"]
-        TS["🔧 Subagent Toolset"]
+        PA["pydantic-ai Agent"]
+        TS["Subagent Toolset"]
         PA --> TS
     end
 
-    subgraph tools [" Tools "]
-        direction TB
+    subgraph tools [" 🔧 Tools "]
+        direction LR
         T1["task()"]
         T2["check_task()"]
         T3["answer_subagent()"]
         T4["cancel_task()"]
     end
 
-    subgraph agents [" Specialized Subagents "]
-        direction TB
+    subgraph agents [" 👥 Specialized Subagents "]
+        direction LR
         S1["🔍 researcher"]
         S2["✍️ writer"]
         S3["💻 coder"]
@@ -45,21 +70,15 @@ flowchart LR
 
     TS --> tools
     tools -->|"sync / async"| agents
-```
 
-## Installation
-
-```bash
-pip install subagents-pydantic-ai
-```
-
-Or with uv:
-
-```bash
-uv add subagents-pydantic-ai
+    MB[("📬 Message Bus")]
+    agents <-->|"questions"| MB
+    MB <-->|"answers"| parent
 ```
 
 ## Quick Start
+
+Add subagent delegation to any pydantic-ai agent:
 
 ```python
 from dataclasses import dataclass, field
@@ -79,18 +98,20 @@ class Deps:
 subagents = [
     SubAgentConfig(
         name="researcher",
-        description="Researches topics and gathers information",
-        instructions="You are a research assistant. Investigate thoroughly.",
+        description="Researches topics thoroughly",
+        instructions="You are a research assistant. Investigate the topic in depth.",
     ),
     SubAgentConfig(
         name="writer",
-        description="Writes content based on research",
-        instructions="You are a technical writer. Write clear, concise content.",
+        description="Writes clear, engaging content",
+        instructions="You are a technical writer. Write clear and concise content.",
     ),
 ]
 
-# Create toolset and agent
+# Create toolset
 toolset = create_subagent_toolset(subagents=subagents)
+
+# Add to your pydantic-ai agent
 agent = Agent(
     "openai:gpt-4o",
     deps_type=Deps,
@@ -98,7 +119,7 @@ agent = Agent(
     system_prompt="You can delegate tasks to specialized subagents.",
 )
 
-# Run the agent
+# Your agent can now delegate!
 result = agent.run_sync(
     "Research Python async patterns and write a blog post about it",
     deps=Deps(),
@@ -106,7 +127,7 @@ result = agent.run_sync(
 print(result.output)
 ```
 
-## Dual-Mode Execution
+## Execution Modes
 
 ```mermaid
 %%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#6366f1', 'actorBkg': '#6366f1', 'actorTextColor': '#fff', 'actorLineColor': '#94a3b8', 'signalColor': '#e2e8f0', 'signalTextColor': '#e2e8f0', 'labelBoxBkgColor': '#1e293b', 'labelBoxBorderColor': '#475569', 'labelTextColor': '#e2e8f0', 'loopTextColor': '#e2e8f0', 'noteBkgColor': '#334155', 'noteTextColor': '#e2e8f0', 'noteBorderColor': '#475569', 'activationBkgColor': '#4f46e5', 'sequenceNumberColor': '#fff'}}}%%
@@ -119,90 +140,41 @@ sequenceDiagram
         P->>+S: task(mode="sync")
         S-->>S: working...
         S->>-P: ✅ result
+        Note over P: continues with result
     end
 
     rect rgba(34, 197, 94, 0.2)
         Note over P,S: ⚡ Async Mode
         P->>+S: task(mode="async")
-        S-->>P: 🎫 task_id
-        Note over P: continues working...
+        S-->>P: 🎫 task_id: "abc123"
+        Note over P: continues immediately
         S-->>S: working in background...
-        P->>S: check_task(id)
-        S->>-P: ✅ result
+        P->>S: check_task("abc123")
+        S->>-P: ✅ status + result
     end
 ```
 
-### Sync Mode (Default)
+=== "Sync Mode (Default)"
 
-Block until the subagent completes:
+    ```python
+    # Block until complete - use for:
+    # - Quick tasks
+    # - When you need the result immediately
+    # - Back-and-forth communication
+    ```
 
-```python
-# The agent uses task() with mode="sync" (default)
-# - Quick tasks
-# - When result is needed immediately
-# - Back-and-forth communication
-```
+=== "Async Mode"
 
-### Async Mode
-
-Run in background, continue working:
-
-```python
-# The agent uses task() with mode="async"
-# - Long-running research
-# - Parallel tasks
-# - When immediate result isn't needed
-```
-
-## Give Subagents Tools
-
-Provide toolsets to your subagents:
-
-```python
-from pydantic_ai_backends import create_console_toolset
-
-def my_toolsets_factory(deps):
-    """Factory that creates toolsets for subagents."""
-    return [
-        create_console_toolset(),  # File operations
-        create_search_toolset(),   # Web search
-    ]
-
-toolset = create_subagent_toolset(
-    subagents=subagents,
-    toolsets_factory=my_toolsets_factory,
-)
-```
-
-## Dynamic Agent Creation
-
-Create agents at runtime:
-
-```python
-from subagents_pydantic_ai import (
-    create_subagent_toolset,
-    create_agent_factory_toolset,
-    DynamicAgentRegistry,
-)
-
-registry = DynamicAgentRegistry()
-
-# Main agent can create new specialized agents on-the-fly
-agent = Agent(
-    "openai:gpt-4o",
-    deps_type=Deps,
-    toolsets=[
-        create_subagent_toolset(),
-        create_agent_factory_toolset(
-            registry=registry,
-            allowed_models=["openai:gpt-4o", "openai:gpt-4o-mini"],
-            max_agents=5,
-        ),
-    ],
-)
-```
+    ```python
+    # Run in background - use for:
+    # - Long-running research
+    # - Parallel tasks
+    # - When you can continue other work
+    ```
 
 ## Available Tools
+
+Your pydantic-ai agent gets these tools automatically:
 
 | Tool | Description |
 |------|-------------|
@@ -215,20 +187,29 @@ agent = Agent(
 
 ## Related Projects
 
-- **[pydantic-ai](https://github.com/pydantic/pydantic-ai)** - Agent framework by Pydantic
+- **[pydantic-ai](https://github.com/pydantic/pydantic-ai)** - The foundation: Agent framework by Pydantic
 - **[pydantic-deep](https://github.com/vstorm-co/pydantic-deep)** - Full agent framework (uses this library)
 - **[pydantic-ai-backend](https://github.com/vstorm-co/pydantic-ai-backend)** - File storage and sandbox backends
 - **[pydantic-ai-todo](https://github.com/vstorm-co/pydantic-ai-todo)** - Task planning toolset
 
-## Development
+## Next Steps
 
-```bash
-git clone https://github.com/vstorm-co/subagents-pydantic-ai.git
-cd subagents-pydantic-ai
-make install
-make test
-```
+<div class="feature-grid">
+<div class="feature-card">
+<h3>📖 Quickstart</h3>
+<p>Get started in minutes.</p>
+<a href="quickstart/">Quickstart Guide →</a>
+</div>
 
-## License
+<div class="feature-card">
+<h3>⚡ Dual-Mode</h3>
+<p>Learn sync vs async execution.</p>
+<a href="dual-mode/">Dual-Mode Guide →</a>
+</div>
 
-MIT License - see [LICENSE](LICENSE) for details.
+<div class="feature-card">
+<h3>📚 API Reference</h3>
+<p>Complete API documentation.</p>
+<a href="api-reference/">API Reference →</a>
+</div>
+</div>

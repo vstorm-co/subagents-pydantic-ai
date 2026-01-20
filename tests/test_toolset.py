@@ -1,0 +1,937 @@
+"""Tests for toolset module."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Any
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
+from subagents_pydantic_ai import SubAgentConfig, create_subagent_toolset
+from subagents_pydantic_ai.toolset import (
+    _compile_subagent,
+    _create_ask_parent_toolset,
+    _create_general_purpose_config,
+    _run_async,
+    _run_sync,
+)
+from subagents_pydantic_ai.types import TaskPriority, TaskStatus
+
+
+@dataclass
+class MockDeps:
+    """Mock dependencies for testing."""
+
+    subagents: dict[str, Any] = field(default_factory=dict)
+
+    def clone_for_subagent(self, max_depth: int = 0) -> "MockDeps":
+        return MockDeps(subagents={} if max_depth <= 0 else self.subagents.copy())
+
+
+@dataclass
+class MockRunContext:
+    """Mock run context for testing."""
+
+    deps: MockDeps
+    _subagent_state: dict[str, Any] | None = None
+
+
+class MockResult:
+    """Mock agent result."""
+
+    def __init__(self, output: str):
+        self.output = output
+
+
+class TestCreateGeneralPurposeConfig:
+    """Tests for _create_general_purpose_config."""
+
+    def test_creates_config(self):
+        """Test general purpose config creation."""
+        config = _create_general_purpose_config()
+
+        assert config["name"] == "general-purpose"
+        assert "general-purpose" in config["description"].lower()
+        assert config.get("can_ask_questions") is True
+
+
+class TestCompileSubagent:
+    """Tests for _compile_subagent."""
+
+    def test_compile_with_default_model(self):
+        """Test compiling subagent with default model."""
+        config = SubAgentConfig(
+            name="test-agent",
+            description="Test agent",
+            instructions="Test instructions",
+        )
+
+        compiled = _compile_subagent(config, "openai:gpt-4")
+
+        assert compiled.name == "test-agent"
+        assert compiled.description == "Test agent"
+        assert compiled.agent is not None
+        assert compiled.config == config
+
+    def test_compile_with_custom_model(self):
+        """Test compiling subagent with custom model."""
+        config = SubAgentConfig(
+            name="test-agent",
+            description="Test agent",
+            instructions="Test instructions",
+            model="openai:gpt-3.5-turbo",
+        )
+
+        compiled = _compile_subagent(config, "openai:gpt-4")
+
+        assert compiled.agent is not None
+
+
+class TestCreateAskParentToolset:
+    """Tests for _create_ask_parent_toolset."""
+
+    def test_creates_toolset(self):
+        """Test ask_parent toolset creation."""
+        toolset = _create_ask_parent_toolset()
+
+        assert toolset.id == "ask_parent"
+        assert "ask_parent" in [t.name for t in toolset]
+
+    @pytest.mark.asyncio
+    async def test_ask_parent_no_state(self):
+        """Test ask_parent with no state returns error."""
+        toolset = _create_ask_parent_toolset()
+
+        # Get the ask_parent tool
+        ask_parent_tool = None
+        for tool in toolset:
+            if tool.name == "ask_parent":
+                ask_parent_tool = tool
+                break
+
+        assert ask_parent_tool is not None
+
+        ctx = MockRunContext(deps=MockDeps())
+        # Manually call the tool function
+        result = await ask_parent_tool.function(ctx, "question")
+        assert "Error" in result
+        assert "no communication channel" in result
+
+    @pytest.mark.asyncio
+    async def test_ask_parent_with_callback(self):
+        """Test ask_parent with callback."""
+        toolset = _create_ask_parent_toolset()
+
+        ask_parent_tool = None
+        for tool in toolset:
+            if tool.name == "ask_parent":
+                ask_parent_tool = tool
+                break
+
+        async def mock_callback(q: str) -> str:
+            return f"Answer to: {q}"
+
+        ctx = MockRunContext(deps=MockDeps())
+        ctx._subagent_state = {"ask_callback": mock_callback}
+
+        result = await ask_parent_tool.function(ctx, "what is 2+2?")
+        assert result == "Answer to: what is 2+2?"
+
+    @pytest.mark.asyncio
+    async def test_ask_parent_with_message_bus(self):
+        """Test ask_parent with message bus."""
+        from subagents_pydantic_ai import InMemoryMessageBus
+        from subagents_pydantic_ai.types import AgentMessage, MessageType
+
+        toolset = _create_ask_parent_toolset()
+
+        ask_parent_tool = None
+        for tool in toolset:
+            if tool.name == "ask_parent":
+                ask_parent_tool = tool
+                break
+
+        message_bus = InMemoryMessageBus()
+        message_bus.register_agent("parent")
+        message_bus.register_agent("subagent-123")
+
+        ctx = MockRunContext(deps=MockDeps())
+        ctx._subagent_state = {
+            "message_bus": message_bus,
+            "task_id": "task-123",
+            "parent_id": "parent",
+            "agent_id": "subagent-123",
+        }
+
+        # Setup answer in background
+        async def answer_question():
+            import asyncio
+
+            await asyncio.sleep(0.05)
+            queue = message_bus._queues["parent"]
+            msg = await queue.get()
+            await message_bus.answer(msg, "the answer is 4")
+
+        import asyncio
+
+        answer_task = asyncio.create_task(answer_question())
+
+        result = await ask_parent_tool.function(ctx, "what is 2+2?")
+        await answer_task
+
+        assert result == "the answer is 4"
+
+
+class TestCreateSubagentToolset:
+    """Tests for create_subagent_toolset."""
+
+    def test_creates_toolset_with_defaults(self):
+        """Test creating toolset with default options."""
+        toolset = create_subagent_toolset()
+
+        tool_names = [t.name for t in toolset]
+        assert "task" in tool_names
+        assert "check_task" in tool_names
+        assert "answer_subagent" in tool_names
+        assert "list_active_tasks" in tool_names
+        assert "soft_cancel_task" in tool_names
+        assert "hard_cancel_task" in tool_names
+
+    def test_creates_toolset_with_subagents(self):
+        """Test creating toolset with custom subagents."""
+        subagents = [
+            SubAgentConfig(
+                name="researcher",
+                description="Researches topics",
+                instructions="Do research",
+            ),
+        ]
+        toolset = create_subagent_toolset(subagents=subagents)
+
+        assert toolset.id == "subagents"
+
+    def test_creates_toolset_without_general_purpose(self):
+        """Test creating toolset without general purpose agent."""
+        subagents = [
+            SubAgentConfig(
+                name="researcher",
+                description="Researches topics",
+                instructions="Do research",
+            ),
+        ]
+        toolset = create_subagent_toolset(
+            subagents=subagents,
+            include_general_purpose=False,
+        )
+
+        # Verify general-purpose is not available
+        # This would be checked via the task tool's docstring
+        assert toolset is not None
+
+    def test_creates_toolset_with_custom_id(self):
+        """Test creating toolset with custom ID."""
+        toolset = create_subagent_toolset(id="custom_subagents")
+        assert toolset.id == "custom_subagents"
+
+    @pytest.mark.asyncio
+    async def test_task_unknown_subagent(self):
+        """Test task with unknown subagent returns error."""
+        toolset = create_subagent_toolset(include_general_purpose=False)
+
+        # Get task tool
+        task_tool = None
+        for tool in toolset:
+            if tool.name == "task":
+                task_tool = tool
+                break
+
+        ctx = MockRunContext(deps=MockDeps())
+        result = await task_tool.function(
+            ctx, "do something", "nonexistent", "sync"
+        )
+
+        assert "Error" in result
+        assert "Unknown subagent" in result
+
+    @pytest.mark.asyncio
+    async def test_check_task_not_found(self):
+        """Test check_task with non-existent task."""
+        toolset = create_subagent_toolset()
+
+        check_task_tool = None
+        for tool in toolset:
+            if tool.name == "check_task":
+                check_task_tool = tool
+                break
+
+        ctx = MockRunContext(deps=MockDeps())
+        result = await check_task_tool.function(ctx, "nonexistent-task")
+
+        assert "Error" in result
+        assert "not found" in result
+
+    @pytest.mark.asyncio
+    async def test_answer_subagent_not_found(self):
+        """Test answer_subagent with non-existent task."""
+        toolset = create_subagent_toolset()
+
+        answer_tool = None
+        for tool in toolset:
+            if tool.name == "answer_subagent":
+                answer_tool = tool
+                break
+
+        ctx = MockRunContext(deps=MockDeps())
+        result = await answer_tool.function(ctx, "nonexistent-task", "answer")
+
+        assert "Error" in result
+        assert "not found" in result
+
+    @pytest.mark.asyncio
+    async def test_list_active_tasks_empty(self):
+        """Test list_active_tasks with no active tasks."""
+        toolset = create_subagent_toolset()
+
+        list_tool = None
+        for tool in toolset:
+            if tool.name == "list_active_tasks":
+                list_tool = tool
+                break
+
+        ctx = MockRunContext(deps=MockDeps())
+        result = await list_tool.function(ctx)
+
+        assert "No active background tasks" in result
+
+    @pytest.mark.asyncio
+    async def test_soft_cancel_not_found(self):
+        """Test soft_cancel_task with non-existent task."""
+        toolset = create_subagent_toolset()
+
+        cancel_tool = None
+        for tool in toolset:
+            if tool.name == "soft_cancel_task":
+                cancel_tool = tool
+                break
+
+        ctx = MockRunContext(deps=MockDeps())
+        result = await cancel_tool.function(ctx, "nonexistent-task")
+
+        assert "Error" in result
+        assert "not found" in result
+
+    @pytest.mark.asyncio
+    async def test_hard_cancel_not_found(self):
+        """Test hard_cancel_task with non-existent task."""
+        toolset = create_subagent_toolset()
+
+        cancel_tool = None
+        for tool in toolset:
+            if tool.name == "hard_cancel_task":
+                cancel_tool = tool
+                break
+
+        ctx = MockRunContext(deps=MockDeps())
+        result = await cancel_tool.function(ctx, "nonexistent-task")
+
+        assert "Error" in result
+        assert "not found" in result
+
+
+class TestRunSync:
+    """Tests for _run_sync function."""
+
+    @pytest.mark.asyncio
+    async def test_run_sync_success(self):
+        """Test successful sync execution."""
+        mock_agent = MagicMock()
+        mock_agent.run = AsyncMock(return_value=MockResult("task completed"))
+
+        config = SubAgentConfig(
+            name="test",
+            description="Test agent",
+            instructions="Do test",
+        )
+
+        result = await _run_sync(
+            agent=mock_agent,
+            config=config,
+            description="do the thing",
+            deps=MockDeps(),
+            task_id="task-123",
+        )
+
+        assert result == "task completed"
+        mock_agent.run.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_run_sync_error(self):
+        """Test sync execution with error."""
+        mock_agent = MagicMock()
+        mock_agent.run = AsyncMock(side_effect=Exception("Something went wrong"))
+
+        config = SubAgentConfig(
+            name="test",
+            description="Test agent",
+            instructions="Do test",
+        )
+
+        result = await _run_sync(
+            agent=mock_agent,
+            config=config,
+            description="do the thing",
+            deps=MockDeps(),
+            task_id="task-123",
+        )
+
+        assert "Error" in result
+        assert "Something went wrong" in result
+
+
+class TestRunAsync:
+    """Tests for _run_async function."""
+
+    @pytest.mark.asyncio
+    async def test_run_async_returns_task_handle(self):
+        """Test async execution returns task handle info."""
+        from subagents_pydantic_ai import InMemoryMessageBus, TaskManager
+
+        mock_agent = MagicMock()
+        mock_agent.run = AsyncMock(return_value=MockResult("task completed"))
+
+        config = SubAgentConfig(
+            name="test",
+            description="Test agent",
+            instructions="Do test",
+        )
+
+        message_bus = InMemoryMessageBus()
+        task_manager = TaskManager(message_bus=message_bus)
+
+        result = await _run_async(
+            agent=mock_agent,
+            config=config,
+            description="do the thing",
+            deps=MockDeps(),
+            task_id="task-123",
+            task_manager=task_manager,
+            message_bus=message_bus,
+        )
+
+        assert "Task started in background" in result
+        assert "task-123" in result
+        assert "check_task" in result
+
+    @pytest.mark.asyncio
+    async def test_run_async_task_completes(self):
+        """Test async task completes successfully."""
+        import asyncio
+
+        from subagents_pydantic_ai import InMemoryMessageBus, TaskManager
+
+        mock_agent = MagicMock()
+        mock_agent.run = AsyncMock(return_value=MockResult("task completed"))
+
+        config = SubAgentConfig(
+            name="test",
+            description="Test agent",
+            instructions="Do test",
+        )
+
+        message_bus = InMemoryMessageBus()
+        task_manager = TaskManager(message_bus=message_bus)
+
+        await _run_async(
+            agent=mock_agent,
+            config=config,
+            description="do the thing",
+            deps=MockDeps(),
+            task_id="task-123",
+            task_manager=task_manager,
+            message_bus=message_bus,
+        )
+
+        # Wait for task to complete
+        await asyncio.sleep(0.1)
+
+        handle = task_manager.get_handle("task-123")
+        assert handle is not None
+        assert handle.status == TaskStatus.COMPLETED
+        assert handle.result == "task completed"
+
+    @pytest.mark.asyncio
+    async def test_run_async_task_fails(self):
+        """Test async task handles failure."""
+        import asyncio
+
+        from subagents_pydantic_ai import InMemoryMessageBus, TaskManager
+
+        mock_agent = MagicMock()
+        mock_agent.run = AsyncMock(side_effect=Exception("Task failed"))
+
+        config = SubAgentConfig(
+            name="test",
+            description="Test agent",
+            instructions="Do test",
+        )
+
+        message_bus = InMemoryMessageBus()
+        task_manager = TaskManager(message_bus=message_bus)
+
+        await _run_async(
+            agent=mock_agent,
+            config=config,
+            description="do the thing",
+            deps=MockDeps(),
+            task_id="task-456",
+            task_manager=task_manager,
+            message_bus=message_bus,
+        )
+
+        # Wait for task to fail
+        await asyncio.sleep(0.1)
+
+        handle = task_manager.get_handle("task-456")
+        assert handle is not None
+        assert handle.status == TaskStatus.FAILED
+        assert "Task failed" in handle.error
+
+
+class TestToolsetIntegration:
+    """Integration tests for toolset functionality."""
+
+    @pytest.mark.asyncio
+    async def test_task_sync_execution(self):
+        """Test full sync task execution flow."""
+        subagents = [
+            SubAgentConfig(
+                name="helper",
+                description="Helps with tasks",
+                instructions="Help with things",
+            ),
+        ]
+
+        with patch(
+            "subagents_pydantic_ai.toolset._run_sync",
+            new_callable=AsyncMock,
+            return_value="Sync result",
+        ):
+            toolset = create_subagent_toolset(
+                subagents=subagents,
+                include_general_purpose=False,
+            )
+
+            task_tool = None
+            for tool in toolset:
+                if tool.name == "task":
+                    task_tool = tool
+                    break
+
+            ctx = MockRunContext(deps=MockDeps())
+            result = await task_tool.function(ctx, "do something", "helper", "sync")
+
+            assert result == "Sync result"
+
+    @pytest.mark.asyncio
+    async def test_task_async_execution(self):
+        """Test full async task execution flow."""
+        subagents = [
+            SubAgentConfig(
+                name="worker",
+                description="Does work",
+                instructions="Work on things",
+            ),
+        ]
+
+        with patch(
+            "subagents_pydantic_ai.toolset._run_async",
+            new_callable=AsyncMock,
+            return_value="Task started. ID: abc123",
+        ):
+            toolset = create_subagent_toolset(
+                subagents=subagents,
+                include_general_purpose=False,
+            )
+
+            task_tool = None
+            for tool in toolset:
+                if tool.name == "task":
+                    task_tool = tool
+                    break
+
+            ctx = MockRunContext(deps=MockDeps())
+            result = await task_tool.function(ctx, "do something", "worker", "async")
+
+            assert "Task started" in result
+
+
+def _make_mock_compiled_subagent(config: SubAgentConfig) -> "CompiledSubAgent":
+    """Helper to create a mock compiled subagent."""
+    from subagents_pydantic_ai.types import CompiledSubAgent
+
+    mock_agent = MagicMock()
+    return CompiledSubAgent(
+        name=config["name"],
+        description=config["description"],
+        agent=mock_agent,
+        config=config,
+    )
+
+
+class TestAutoModeSelection:
+    """Tests for auto-mode selection in task tool."""
+
+    @pytest.mark.asyncio
+    async def test_task_auto_mode_simple_uses_sync(self):
+        """Test auto mode with simple complexity uses sync."""
+        config = SubAgentConfig(
+            name="helper",
+            description="Helps with tasks",
+            instructions="Help with things",
+        )
+
+        with (
+            patch(
+                "subagents_pydantic_ai.toolset._compile_subagent",
+                return_value=_make_mock_compiled_subagent(config),
+            ),
+            patch(
+                "subagents_pydantic_ai.toolset._run_sync",
+                new_callable=AsyncMock,
+                return_value="Sync result",
+            ) as mock_sync,
+        ):
+            toolset = create_subagent_toolset(
+                subagents=[config],
+                include_general_purpose=False,
+            )
+
+            task_tool = toolset.tools["task"]
+
+            ctx = MockRunContext(deps=MockDeps())
+            result = await task_tool.function(
+                ctx,
+                "do something",
+                "helper",
+                "auto",  # auto mode
+                TaskPriority.NORMAL,
+                "simple",  # complexity override
+                False,  # requires_user_context
+                False,  # may_need_clarification
+            )
+
+            assert result == "Sync result"
+            mock_sync.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_task_auto_mode_complex_uses_async(self):
+        """Test auto mode with complex complexity uses async."""
+        config = SubAgentConfig(
+            name="worker",
+            description="Does work",
+            instructions="Work on things",
+        )
+
+        with (
+            patch(
+                "subagents_pydantic_ai.toolset._compile_subagent",
+                return_value=_make_mock_compiled_subagent(config),
+            ),
+            patch(
+                "subagents_pydantic_ai.toolset._run_async",
+                new_callable=AsyncMock,
+                return_value="Task started",
+            ) as mock_async,
+        ):
+            toolset = create_subagent_toolset(
+                subagents=[config],
+                include_general_purpose=False,
+            )
+
+            task_tool = toolset.tools["task"]
+
+            ctx = MockRunContext(deps=MockDeps())
+            result = await task_tool.function(
+                ctx,
+                "do something",
+                "worker",
+                "auto",  # auto mode
+                TaskPriority.NORMAL,
+                "complex",  # complexity override
+                False,  # requires_user_context
+                False,  # may_need_clarification
+            )
+
+            assert "Task started" in result
+            mock_async.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_task_auto_mode_requires_context_uses_sync(self):
+        """Test auto mode with requires_user_context uses sync."""
+        config = SubAgentConfig(
+            name="helper",
+            description="Helps with tasks",
+            instructions="Help with things",
+        )
+
+        with (
+            patch(
+                "subagents_pydantic_ai.toolset._compile_subagent",
+                return_value=_make_mock_compiled_subagent(config),
+            ),
+            patch(
+                "subagents_pydantic_ai.toolset._run_sync",
+                new_callable=AsyncMock,
+                return_value="Sync result",
+            ) as mock_sync,
+        ):
+            toolset = create_subagent_toolset(
+                subagents=[config],
+                include_general_purpose=False,
+            )
+
+            task_tool = toolset.tools["task"]
+
+            ctx = MockRunContext(deps=MockDeps())
+            result = await task_tool.function(
+                ctx,
+                "do something",
+                "helper",
+                "auto",  # auto mode
+                TaskPriority.NORMAL,
+                "complex",  # complexity override - would normally be async
+                True,  # requires_user_context - forces sync
+                False,  # may_need_clarification
+            )
+
+            assert result == "Sync result"
+            mock_sync.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_task_with_priority_parameter(self):
+        """Test task with priority parameter passed to async."""
+        config = SubAgentConfig(
+            name="worker",
+            description="Does work",
+            instructions="Work on things",
+        )
+
+        with (
+            patch(
+                "subagents_pydantic_ai.toolset._compile_subagent",
+                return_value=_make_mock_compiled_subagent(config),
+            ),
+            patch(
+                "subagents_pydantic_ai.toolset._run_async",
+                new_callable=AsyncMock,
+                return_value="Task started",
+            ) as mock_async,
+        ):
+            toolset = create_subagent_toolset(
+                subagents=[config],
+                include_general_purpose=False,
+            )
+
+            task_tool = toolset.tools["task"]
+
+            ctx = MockRunContext(deps=MockDeps())
+            await task_tool.function(
+                ctx,
+                "do something",
+                "worker",
+                "async",
+                TaskPriority.HIGH,  # priority parameter
+            )
+
+            # Verify priority was passed
+            call_kwargs = mock_async.call_args.kwargs
+            assert call_kwargs.get("priority") == TaskPriority.HIGH
+
+    @pytest.mark.asyncio
+    async def test_task_auto_mode_uses_config_typical_complexity(self):
+        """Test auto mode uses config's typical_complexity."""
+        config = SubAgentConfig(
+            name="simple-worker",
+            description="Does simple work",
+            instructions="Work on things",
+            typical_complexity="simple",
+        )
+
+        with (
+            patch(
+                "subagents_pydantic_ai.toolset._compile_subagent",
+                return_value=_make_mock_compiled_subagent(config),
+            ),
+            patch(
+                "subagents_pydantic_ai.toolset._run_sync",
+                new_callable=AsyncMock,
+                return_value="Sync result",
+            ) as mock_sync,
+        ):
+            toolset = create_subagent_toolset(
+                subagents=[config],
+                include_general_purpose=False,
+            )
+
+            task_tool = toolset.tools["task"]
+
+            ctx = MockRunContext(deps=MockDeps())
+            result = await task_tool.function(
+                ctx,
+                "do something",
+                "simple-worker",
+                "auto",  # auto mode - uses config's typical_complexity
+            )
+
+            assert result == "Sync result"
+            mock_sync.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_task_auto_mode_uses_config_typically_needs_context(self):
+        """Test auto mode uses config's typically_needs_context."""
+        config = SubAgentConfig(
+            name="context-worker",
+            description="Needs context",
+            instructions="Work on things",
+            typical_complexity="complex",
+            typically_needs_context=True,
+        )
+
+        with (
+            patch(
+                "subagents_pydantic_ai.toolset._compile_subagent",
+                return_value=_make_mock_compiled_subagent(config),
+            ),
+            patch(
+                "subagents_pydantic_ai.toolset._run_sync",
+                new_callable=AsyncMock,
+                return_value="Sync result",
+            ) as mock_sync,
+        ):
+            toolset = create_subagent_toolset(
+                subagents=[config],
+                include_general_purpose=False,
+            )
+
+            task_tool = toolset.tools["task"]
+
+            ctx = MockRunContext(deps=MockDeps())
+            # Complex task would normally be async, but config says needs context
+            result = await task_tool.function(
+                ctx,
+                "do something",
+                "context-worker",
+                "auto",
+            )
+
+            assert result == "Sync result"
+            mock_sync.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_task_auto_mode_with_preferred_mode(self):
+        """Test auto mode respects config's preferred_mode."""
+        config = SubAgentConfig(
+            name="sync-worker",
+            description="Prefers sync",
+            instructions="Work on things",
+            preferred_mode="sync",
+        )
+
+        with (
+            patch(
+                "subagents_pydantic_ai.toolset._compile_subagent",
+                return_value=_make_mock_compiled_subagent(config),
+            ),
+            patch(
+                "subagents_pydantic_ai.toolset._run_sync",
+                new_callable=AsyncMock,
+                return_value="Sync result",
+            ) as mock_sync,
+        ):
+            toolset = create_subagent_toolset(
+                subagents=[config],
+                include_general_purpose=False,
+            )
+
+            task_tool = toolset.tools["task"]
+
+            ctx = MockRunContext(deps=MockDeps())
+            # Auto mode should respect preferred_mode
+            result = await task_tool.function(
+                ctx,
+                "do something",
+                "sync-worker",
+                "auto",
+                TaskPriority.NORMAL,
+                "complex",  # Would normally be async
+            )
+
+            assert result == "Sync result"
+            mock_sync.assert_called_once()
+
+
+class TestRunAsyncWithPriority:
+    """Tests for _run_async with priority parameter."""
+
+    @pytest.mark.asyncio
+    async def test_run_async_with_default_priority(self):
+        """Test async task with default priority."""
+        from subagents_pydantic_ai import InMemoryMessageBus, TaskManager
+
+        mock_agent = MagicMock()
+        mock_agent.run = AsyncMock(return_value=MockResult("task completed"))
+
+        config = SubAgentConfig(
+            name="test",
+            description="Test agent",
+            instructions="Do test",
+        )
+
+        message_bus = InMemoryMessageBus()
+        task_manager = TaskManager(message_bus=message_bus)
+
+        result = await _run_async(
+            agent=mock_agent,
+            config=config,
+            description="do the thing",
+            deps=MockDeps(),
+            task_id="task-123",
+            task_manager=task_manager,
+            message_bus=message_bus,
+        )
+
+        assert "Task started in background" in result
+        handle = task_manager.get_handle("task-123")
+        assert handle.priority == TaskPriority.NORMAL
+
+    @pytest.mark.asyncio
+    async def test_run_async_with_high_priority(self):
+        """Test async task with high priority."""
+        from subagents_pydantic_ai import InMemoryMessageBus, TaskManager
+
+        mock_agent = MagicMock()
+        mock_agent.run = AsyncMock(return_value=MockResult("task completed"))
+
+        config = SubAgentConfig(
+            name="test",
+            description="Test agent",
+            instructions="Do test",
+        )
+
+        message_bus = InMemoryMessageBus()
+        task_manager = TaskManager(message_bus=message_bus)
+
+        await _run_async(
+            agent=mock_agent,
+            config=config,
+            description="do the thing",
+            deps=MockDeps(),
+            task_id="task-456",
+            task_manager=task_manager,
+            message_bus=message_bus,
+            priority=TaskPriority.HIGH,
+        )
+
+        handle = task_manager.get_handle("task-456")
+        assert handle.priority == TaskPriority.HIGH
