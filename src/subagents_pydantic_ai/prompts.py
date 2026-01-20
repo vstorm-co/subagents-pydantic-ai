@@ -46,7 +46,7 @@ You can delegate tasks to subagents in two modes:
 - Returns a task handle immediately - check status later
 """
 
-DEFAULT_GENERAL_PURPOSE_DESCRIPTION = """A general-purpose agent that can handle a wide variety of tasks.
+DEFAULT_GENERAL_PURPOSE_DESCRIPTION = """A general-purpose agent for a wide variety of tasks.
 Use this when no specialized subagent matches the task requirements.
 Capable of research, analysis, writing, and problem-solving."""
 

@@ -23,7 +23,7 @@ class MockDeps:
     data: dict[str, Any] = field(default_factory=dict)
     clone_calls: list[int] = field(default_factory=list)
 
-    def clone_for_subagent(self, max_depth: int = 0) -> "MockDeps":
+    def clone_for_subagent(self, max_depth: int = 0) -> MockDeps:
         """Clone deps for subagent."""
         self.clone_calls.append(max_depth)
         return MockDeps(

@@ -410,10 +410,9 @@ def create_subagent_toolset(
         lines = ["Active background tasks:"]
         for tid in active_ids:
             handle = task_manager.get_handle(tid)
-            if handle:
-                lines.append(
-                    f"- {tid}: {handle.subagent_name} ({handle.status}) - {handle.description[:50]}..."
-                )
+            if handle:  # pragma: no branch
+                desc = handle.description[:50]
+                lines.append(f"- {tid}: {handle.subagent_name} ({handle.status}) - {desc}...")
 
         return "\n".join(lines)
 

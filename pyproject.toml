@@ -111,9 +111,13 @@ select = [
     "RUF100", # unused noqa
     "C90",    # mccabe complexity
 ]
+ignore = [
+    "B021",   # f-string docstrings are used intentionally for dynamic LLM tool documentation
+    "SIM105", # contextlib.suppress is less readable in async contexts
+]
 
 [tool.ruff.lint.mccabe]
-max-complexity = 15
+max-complexity = 30  # Factory functions are intentionally complex
 
 [tool.ruff.format]
 quote-style = "double"

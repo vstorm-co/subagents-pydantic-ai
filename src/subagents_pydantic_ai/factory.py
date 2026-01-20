@@ -131,14 +131,16 @@ def create_agent_factory_toolset(
         # Validate model
         actual_model = model or default_model
         if allowed_models and actual_model not in allowed_models:
-            return f"Error: Model '{actual_model}' is not allowed. Use one of: {', '.join(allowed_models)}"
+            allowed = ", ".join(allowed_models)
+            return f"Error: Model '{actual_model}' is not allowed. Use one of: {allowed}"
 
         # Validate capabilities
         if capabilities and capabilities_map:
             invalid_caps = [c for c in capabilities if c not in capabilities_map]
             if invalid_caps:
                 available = ", ".join(capabilities_map.keys())
-                return f"Error: Unknown capabilities: {', '.join(invalid_caps)}. Available: {available}"
+                invalid = ", ".join(invalid_caps)
+                return f"Error: Unknown capabilities: {invalid}. Available: {available}"
 
         # Create config
         config = SubAgentConfig(

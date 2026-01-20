@@ -15,7 +15,7 @@ class ValidDeps:
 
     subagents: dict[str, Any] = field(default_factory=dict)
 
-    def clone_for_subagent(self, max_depth: int = 0) -> "ValidDeps":
+    def clone_for_subagent(self, max_depth: int = 0) -> ValidDeps:
         return ValidDeps(
             subagents={} if max_depth <= 0 else self.subagents.copy(),
         )

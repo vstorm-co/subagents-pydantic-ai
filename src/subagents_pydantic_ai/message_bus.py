@@ -260,8 +260,8 @@ class InMemoryMessageBus:
             try:
                 msg = queue.get_nowait()
                 messages.append(msg)
-            except asyncio.QueueEmpty:
-                break
+            except asyncio.QueueEmpty:  # pragma: no cover
+                break  # Race condition - queue was emptied between empty() check and get_nowait()
 
         return messages
 

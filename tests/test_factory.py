@@ -18,7 +18,7 @@ class MockDeps:
 
     subagents: dict[str, Any] = field(default_factory=dict)
 
-    def clone_for_subagent(self, max_depth: int = 0) -> "MockDeps":
+    def clone_for_subagent(self, max_depth: int = 0) -> MockDeps:
         return MockDeps(subagents={} if max_depth <= 0 else self.subagents.copy())
 
 
@@ -426,3 +426,45 @@ class TestCreateAgentFactoryToolset:
 
         assert "Error" in result
         assert "Maximum" in result
+
+    @pytest.mark.asyncio
+    async def test_create_agent_value_error(self, registry: DynamicAgentRegistry):
+        """Test handling of ValueError during agent creation."""
+        toolset = create_agent_factory_toolset(registry=registry)
+        create_tool = toolset.tools["create_agent"]
+
+        ctx = MockRunContext(deps=MockDeps())
+
+        with patch("subagents_pydantic_ai.factory.Agent") as mock_agent_class:
+            mock_agent_class.side_effect = ValueError("Invalid configuration")
+
+            result = await create_tool.function(
+                ctx,
+                name="test-agent",
+                description="Test",
+                instructions="Test",
+            )
+
+        assert "Error" in result
+        assert "Invalid configuration" in result
+
+    @pytest.mark.asyncio
+    async def test_create_agent_generic_exception(self, registry: DynamicAgentRegistry):
+        """Test handling of generic exception during agent creation."""
+        toolset = create_agent_factory_toolset(registry=registry)
+        create_tool = toolset.tools["create_agent"]
+
+        ctx = MockRunContext(deps=MockDeps())
+
+        with patch("subagents_pydantic_ai.factory.Agent") as mock_agent_class:
+            mock_agent_class.side_effect = RuntimeError("Something went wrong")
+
+            result = await create_tool.function(
+                ctx,
+                name="test-agent",
+                description="Test",
+                instructions="Test",
+            )
+
+        assert "Error creating agent" in result
+        assert "Something went wrong" in result

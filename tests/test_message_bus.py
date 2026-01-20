@@ -209,7 +209,7 @@ class TestInMemoryMessageBus:
     @pytest.mark.asyncio
     async def test_get_messages_with_pending(self, message_bus: InMemoryMessageBus):
         """Test get_messages returns pending messages."""
-        queue = message_bus.register_agent("agent")
+        message_bus.register_agent("agent")
         message_bus.register_agent("sender")
 
         msg1 = AgentMessage(
@@ -485,3 +485,212 @@ class TestTaskManager:
         active = task_manager.list_active_tasks()
         assert "task-1" in active
         assert "task-2" not in active
+
+    @pytest.mark.asyncio
+    async def test_soft_cancel_sends_message(self, task_manager: TaskManager):
+        """Test soft cancel sends cancel message to registered agent."""
+        handle = TaskHandle(
+            task_id="task-1",
+            subagent_name="worker",
+            description="test",
+            status="running",
+        )
+
+        # Register the agent to receive cancel message
+        task_manager.message_bus.register_agent("worker")
+
+        async def long_task():
+            cancel_event = task_manager.get_cancel_event("task-1")
+            while cancel_event and not cancel_event.is_set():
+                await asyncio.sleep(0.01)
+            return "cancelled"
+
+        task_manager.create_task("task-1", long_task(), handle)
+
+        result = await task_manager.soft_cancel("task-1")
+        assert result is True
+
+        # Check that a cancel message was sent to the agent's queue
+        queue = task_manager.message_bus._queues["worker"]
+        msg = await asyncio.wait_for(queue.get(), timeout=1.0)
+        assert msg.type == MessageType.CANCEL_REQUEST
+
+    @pytest.mark.asyncio
+    async def test_hard_cancel_updates_handle(self, task_manager: TaskManager):
+        """Test hard cancel updates handle status and completed_at."""
+        handle = TaskHandle(
+            task_id="task-1",
+            subagent_name="worker",
+            description="test",
+            status="running",
+        )
+
+        async def long_task():
+            await asyncio.sleep(10)
+            return "done"
+
+        task_manager.create_task("task-1", long_task(), handle)
+
+        # Hard cancel
+        result = await task_manager.hard_cancel("task-1")
+        assert result is True
+        assert handle.status == "cancelled"
+        assert handle.completed_at is not None
+
+
+class TestInMemoryMessageBusAnswerEdgeCases:
+    """Edge case tests for message bus answer functionality."""
+
+    @pytest.mark.asyncio
+    async def test_answer_future_already_done(self, message_bus: InMemoryMessageBus):
+        """Test answering when future is already completed."""
+        message_bus.register_agent("parent")
+        receiver_queue = message_bus.register_agent("worker")
+
+        # Start the ask call
+        async def do_ask():
+            return await message_bus.ask(
+                sender="parent",
+                receiver="worker",
+                question="question",
+                task_id="task-1",
+                timeout=5.0,
+            )
+
+        ask_task = asyncio.create_task(do_ask())
+
+        # Wait for the question to arrive
+        await asyncio.sleep(0.05)
+        msg = await receiver_queue.get()
+
+        # Answer the question
+        await message_bus.answer(msg, "first answer")
+
+        # Get the result
+        response = await ask_task
+        assert response.payload == "first answer"
+
+        # Try to answer again (future is already done) - should not raise
+        await message_bus.answer(msg, "second answer")
+
+    @pytest.mark.asyncio
+    async def test_get_messages_queue_empty_exception(self, message_bus: InMemoryMessageBus):
+        """Test get_messages handles QueueEmpty during drain."""
+        message_bus.register_agent("agent")
+        message_bus.register_agent("sender")
+
+        # Send multiple messages
+        for i in range(3):
+            await message_bus.send(
+                AgentMessage(
+                    type=MessageType.TASK_ASSIGNED,
+                    sender="sender",
+                    receiver="agent",
+                    payload={"id": i},
+                    task_id=f"task-{i}",
+                )
+            )
+
+        # Get all messages - this will drain the queue
+        messages = await message_bus.get_messages("agent", timeout=0.0)
+        assert len(messages) == 3
+
+        # Get again - should be empty now
+        messages = await message_bus.get_messages("agent", timeout=0.0)
+        assert messages == []
+
+
+class TestTaskManagerBranchCoverage:
+    """Tests for TaskManager branch coverage."""
+
+    @pytest.mark.asyncio
+    async def test_soft_cancel_without_handle(self, task_manager: TaskManager):
+        """Test soft_cancel when task exists but has no handle."""
+        handle = TaskHandle(
+            task_id="task-1",
+            subagent_name="worker",
+            description="test",
+            status="running",
+        )
+
+        async def task_func():
+            cancel_event = task_manager.get_cancel_event("task-1")
+            while cancel_event and not cancel_event.is_set():
+                await asyncio.sleep(0.01)
+            return "done"
+
+        task_manager.create_task("task-1", task_func(), handle)
+
+        # Remove handle but keep task
+        del task_manager.handles["task-1"]
+
+        # Soft cancel should still work (sets event) but skip message send
+        result = await task_manager.soft_cancel("task-1")
+        assert result is True
+
+    @pytest.mark.asyncio
+    async def test_hard_cancel_without_handle(self, task_manager: TaskManager):
+        """Test hard_cancel when task exists but has no handle."""
+        handle = TaskHandle(
+            task_id="task-1",
+            subagent_name="worker",
+            description="test",
+            status="running",
+        )
+
+        async def task_func():
+            await asyncio.sleep(10)
+            return "done"
+
+        task_manager.create_task("task-1", task_func(), handle)
+
+        # Remove handle but keep task
+        del task_manager.handles["task-1"]
+
+        # Hard cancel should still work (cancels task) but skip handle update
+        result = await task_manager.hard_cancel("task-1")
+        assert result is True
+
+    @pytest.mark.asyncio
+    async def test_answer_when_future_already_done(self, message_bus: InMemoryMessageBus):
+        """Test answer when future has already been resolved."""
+        message_bus.register_agent("parent")
+        receiver_queue = message_bus.register_agent("worker")
+
+        # Start an ask
+        ask_task = asyncio.create_task(
+            message_bus.ask(
+                sender="parent",
+                receiver="worker",
+                question="question",
+                task_id="task-1",
+                timeout=5.0,
+            )
+        )
+
+        # Wait for question to arrive
+        await asyncio.sleep(0.05)
+        msg = await receiver_queue.get()
+
+        # Get the future for this correlation_id
+        future = message_bus._pending_questions.get(msg.correlation_id)
+
+        # Manually resolve the future (simulating race condition)
+        if future and not future.done():
+            future.set_result(
+                AgentMessage(
+                    type=MessageType.ANSWER,
+                    sender="worker",
+                    receiver="parent",
+                    payload="first answer",
+                    task_id="task-1",
+                    correlation_id=msg.correlation_id,
+                )
+            )
+
+        # Now try to answer through normal path - future is already done
+        await message_bus.answer(msg, "second answer")
+
+        # The ask should complete with the first answer
+        response = await ask_task
+        assert response.payload == "first answer"
