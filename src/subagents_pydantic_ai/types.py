@@ -148,6 +148,18 @@ class SubAgentConfig(TypedDict, total=False):
         preferred_mode: Default execution mode preference for this subagent
         typical_complexity: Typical task complexity for this subagent
         typically_needs_context: Whether this subagent typically needs user context
+        toolsets: Additional toolsets to register with the subagent
+        agent_kwargs: Additional kwargs passed to Agent constructor (e.g., builtin_tools)
+
+    Example with builtin_tools:
+        ```python
+        SubAgentConfig(
+            name="researcher",
+            description="Research agent with web search",
+            instructions="You research topics using web search.",
+            agent_kwargs={"builtin_tools": [BuitinTools.web_search]},
+        )
+        ```
     """
 
     name: str
@@ -159,6 +171,8 @@ class SubAgentConfig(TypedDict, total=False):
     preferred_mode: NotRequired[Literal["sync", "async", "auto"]]
     typical_complexity: NotRequired[Literal["simple", "moderate", "complex"]]
     typically_needs_context: NotRequired[bool]
+    toolsets: NotRequired[list[Any]]
+    agent_kwargs: NotRequired[dict[str, Any]]
 
 
 def _generate_message_id() -> str:

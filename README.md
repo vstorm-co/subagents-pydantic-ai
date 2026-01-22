@@ -1,51 +1,41 @@
-# subagents-pydantic-ai
+<h1 align="center">Subagents for Pydantic AI</h1>
 
-[![PyPI version](https://img.shields.io/pypi/v/subagents-pydantic-ai.svg)](https://pypi.org/project/subagents-pydantic-ai/)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Coverage Status](https://coveralls.io/repos/github/vstorm-co/subagents-pydantic-ai/badge.svg?branch=main)](https://coveralls.io/github/vstorm-co/subagents-pydantic-ai?branch=main)
+<p align="center">
+  <em>Multi-Agent Orchestration for Pydantic AI</em>
+</p>
 
-Subagent delegation toolset for [pydantic-ai](https://github.com/pydantic/pydantic-ai) with dual-mode execution.
+<p align="center">
+  <a href="https://pypi.org/project/subagents-pydantic-ai/"><img src="https://img.shields.io/pypi/v/subagents-pydantic-ai.svg" alt="PyPI version"></a>
+  <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.10+-blue.svg" alt="Python 3.10+"></a>
+  <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
+  <a href="https://coveralls.io/github/vstorm-co/subagents-pydantic-ai?branch=main"><img src="https://coveralls.io/repos/github/vstorm-co/subagents-pydantic-ai/badge.svg?branch=main" alt="Coverage Status"></a>
+  <a href="https://github.com/pydantic/pydantic-ai"><img src="https://img.shields.io/badge/Powered%20by-Pydantic%20AI-E92063?logo=pydantic&logoColor=white" alt="Pydantic AI"></a>
+</p>
 
-> **Looking for a complete agent framework?** Check out [pydantic-deep](https://github.com/vstorm-co/pydantic-deep) - a full-featured agent framework with planning, subagents, and skills system.
+<p align="center">
+  <b>Nested Subagents</b> — subagents spawn their own subagents
+  &nbsp;&bull;&nbsp;
+  <b>Runtime Agent Creation</b> — create specialists on-the-fly
+  &nbsp;&bull;&nbsp;
+  <b>Auto-Mode Selection</b> — intelligent sync/async decision
+</p>
 
-> **Need file operations?** Check out [pydantic-ai-backend](https://github.com/vstorm-co/pydantic-ai-backend) - file storage and sandbox backends for pydantic-ai agents.
+---
 
-## Documentation
+**Subagents for Pydantic AI** adds multi-agent delegation to any [Pydantic AI](https://ai.pydantic.dev/) agent. Spawn specialized subagents that run **synchronously** (blocking), **asynchronously** (background), or let the system **auto-select** the best mode.
 
-**[Full Documentation](https://vstorm-co.github.io/subagents-pydantic-ai/)** - Installation, concepts, examples, and API reference.
+> **Full framework?** Check out [Pydantic Deep Agents](https://github.com/vstorm-co/pydantic-deepagents) - complete agent framework with planning, filesystem, subagents, and skills.
 
-## Architecture
+## Use Cases
 
-```mermaid
-%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#6366f1', 'primaryTextColor': '#fff', 'primaryBorderColor': '#4f46e5', 'lineColor': '#94a3b8', 'secondaryColor': '#22c55e', 'tertiaryColor': '#1e293b', 'background': '#0f172a', 'mainBkg': '#1e293b', 'textColor': '#e2e8f0', 'nodeTextColor': '#e2e8f0'}}}%%
-flowchart LR
-    subgraph parent [" Parent Agent "]
-        direction TB
-        PA["🤖 pydantic-ai Agent"]
-        TS["🔧 Subagent Toolset"]
-        PA --> TS
-    end
-
-    subgraph tools [" Tools "]
-        direction TB
-        T1["task()"]
-        T2["check_task()"]
-        T3["answer_subagent()"]
-        T4["cancel_task()"]
-    end
-
-    subgraph agents [" Specialized Subagents "]
-        direction TB
-        S1["🔍 researcher"]
-        S2["✍️ writer"]
-        S3["💻 coder"]
-        S4["🔧 general"]
-    end
-
-    TS --> tools
-    tools -->|"sync / async"| agents
-```
+| What You Want to Build | How Subagents Help |
+|------------------------|-------------------|
+| **Research Assistant** | Delegate research to specialists, synthesize with a writer agent |
+| **Code Review System** | Security agent, style agent, and performance agent work in parallel |
+| **Content Pipeline** | Researcher → Analyst → Writer chain with handoffs |
+| **Data Processing** | Spawn workers dynamically based on data volume |
+| **Customer Support** | Route to specialized agents (billing, technical, sales) |
+| **Document Analysis** | Extract, summarize, and categorize with focused agents |
 
 ## Installation
 
@@ -106,57 +96,44 @@ result = agent.run_sync(
 print(result.output)
 ```
 
-## Dual-Mode Execution
+## Execution Modes
 
-```mermaid
-%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#6366f1', 'actorBkg': '#6366f1', 'actorTextColor': '#fff', 'actorLineColor': '#94a3b8', 'signalColor': '#e2e8f0', 'signalTextColor': '#e2e8f0', 'labelBoxBkgColor': '#1e293b', 'labelBoxBorderColor': '#475569', 'labelTextColor': '#e2e8f0', 'loopTextColor': '#e2e8f0', 'noteBkgColor': '#334155', 'noteTextColor': '#e2e8f0', 'noteBorderColor': '#475569', 'activationBkgColor': '#4f46e5', 'sequenceNumberColor': '#fff'}}}%%
-sequenceDiagram
-    participant P as 🤖 Parent
-    participant S as 🔧 Subagent
+Choose how subagents execute their tasks:
 
-    rect rgba(99, 102, 241, 0.2)
-        Note over P,S: 🔄 Sync Mode (default)
-        P->>+S: task(mode="sync")
-        S-->>S: working...
-        S->>-P: ✅ result
-    end
-
-    rect rgba(34, 197, 94, 0.2)
-        Note over P,S: ⚡ Async Mode
-        P->>+S: task(mode="async")
-        S-->>P: 🎫 task_id
-        Note over P: continues working...
-        S-->>S: working in background...
-        P->>S: check_task(id)
-        S->>-P: ✅ result
-    end
-```
+| Mode | Description | Use Case |
+|------|-------------|----------|
+| `sync` | Block until complete | Quick tasks, when result is needed immediately |
+| `async` | Run in background | Long research, parallel tasks |
+| `auto` | Smart selection | Let the system decide based on task characteristics |
 
 ### Sync Mode (Default)
 
-Block until the subagent completes:
-
 ```python
-# The agent uses task() with mode="sync" (default)
-# - Quick tasks
-# - When result is needed immediately
-# - Back-and-forth communication
+# Agent calls: task(description="...", subagent_type="researcher", mode="sync")
+# Parent waits for result before continuing
 ```
 
 ### Async Mode
 
-Run in background, continue working:
+```python
+# Agent calls: task(description="...", subagent_type="researcher", mode="async")
+# Returns task_id immediately, agent continues working
+# Later: check_task(task_id) to get result
+```
+
+### Auto Mode
 
 ```python
-# The agent uses task() with mode="async"
-# - Long-running research
-# - Parallel tasks
-# - When immediate result isn't needed
+# Agent calls: task(description="...", subagent_type="researcher", mode="auto")
+# System decides based on:
+# - Task complexity (simple → sync, complex → async)
+# - Independence (can run without user context → async)
+# - Subagent preferences (from config)
 ```
 
 ## Give Subagents Tools
 
-Provide toolsets to your subagents:
+Provide toolsets so subagents can interact with files, APIs, or other services:
 
 ```python
 from pydantic_ai_backends import create_console_toolset
@@ -176,7 +153,7 @@ toolset = create_subagent_toolset(
 
 ## Dynamic Agent Creation
 
-Create agents at runtime:
+Create agents on-the-fly based on task requirements:
 
 ```python
 from subagents_pydantic_ai import (
@@ -187,7 +164,6 @@ from subagents_pydantic_ai import (
 
 registry = DynamicAgentRegistry()
 
-# Main agent can create new specialized agents on-the-fly
 agent = Agent(
     "openai:gpt-4o",
     deps_type=Deps,
@@ -202,33 +178,80 @@ agent = Agent(
 )
 ```
 
+## Subagent Questions
+
+Enable subagents to ask the parent for clarification:
+
+```python
+SubAgentConfig(
+    name="analyst",
+    description="Analyzes data",
+    instructions="Ask for clarification when data is ambiguous.",
+    can_ask_questions=True,
+    max_questions=3,
+)
+```
+
+The parent agent can then respond using `answer_subagent(task_id, answer)`.
+
 ## Available Tools
 
 | Tool | Description |
 |------|-------------|
-| `task` | Delegate a task to a subagent (sync or async) |
-| `check_task` | Check status of a background task |
-| `answer_subagent` | Answer a question from a subagent |
+| `task` | Delegate a task to a subagent (sync, async, or auto) |
+| `check_task` | Check status and get result of a background task |
+| `answer_subagent` | Answer a question from a blocked subagent |
 | `list_active_tasks` | List all running background tasks |
 | `soft_cancel_task` | Request cooperative cancellation |
 | `hard_cancel_task` | Immediately cancel a task |
 
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                     Parent Agent                        │
+│  ┌─────────────────────────────────────────────────┐    │
+│  │              Subagent Toolset                   │    │
+│  │  task() │ check_task() │ answer_subagent()      │    │
+│  └─────────────────────────────────────────────────┘    │
+│                         │                               │
+│         ┌───────────────┼───────────────┐               │
+│         ▼               ▼               ▼               │
+│  ┌────────────┐  ┌────────────┐  ┌────────────┐         │
+│  │ researcher │  │   writer   │  │   coder    │         │
+│  │  (sync)    │  │  (async)   │  │  (auto)    │         │
+│  └────────────┘  └────────────┘  └────────────┘         │
+│                                                         │
+│              Message Bus (pluggable)                    │
+└─────────────────────────────────────────────────────────┘
+```
+
 ## Related Projects
 
-- **[pydantic-ai](https://github.com/pydantic/pydantic-ai)** - Agent framework by Pydantic
-- **[pydantic-deep](https://github.com/vstorm-co/pydantic-deep)** - Full agent framework (uses this library)
-- **[pydantic-ai-backend](https://github.com/vstorm-co/pydantic-ai-backend)** - File storage and sandbox backends
-- **[pydantic-ai-todo](https://github.com/vstorm-co/pydantic-ai-todo)** - Task planning toolset
+| Package | Description |
+|---------|-------------|
+| [Pydantic Deep Agents](https://github.com/vstorm-co/pydantic-deepagents) | Full agent framework (uses this library) |
+| [pydantic-ai-backend](https://github.com/vstorm-co/pydantic-ai-backend) | File storage and Docker sandbox backends |
+| [pydantic-ai-todo](https://github.com/vstorm-co/pydantic-ai-todo) | Task planning toolset |
+| [summarization-pydantic-ai](https://github.com/vstorm-co/summarization-pydantic-ai) | Context management processors |
+| [pydantic-ai](https://github.com/pydantic/pydantic-ai) | The foundation - agent framework by Pydantic |
 
-## Development
+## Contributing
 
 ```bash
 git clone https://github.com/vstorm-co/subagents-pydantic-ai.git
 cd subagents-pydantic-ai
 make install
-make test
+make test  # 100% coverage required
+make all   # lint + typecheck + test
 ```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for full guidelines.
 
 ## License
 
 MIT License - see [LICENSE](LICENSE) for details.
+
+<p align="center">
+  <sub>Built with ❤️ by <a href="https://github.com/vstorm-co">vstorm-co</a></sub>
+</p>

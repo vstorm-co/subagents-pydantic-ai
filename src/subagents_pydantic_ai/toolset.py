@@ -69,11 +69,19 @@ def _compile_subagent(
     ask_parent_toolset = _create_ask_parent_toolset()
     toolsets.append(ask_parent_toolset)
 
+    # Add custom toolsets from config
+    if config.get("toolsets"):
+        toolsets.extend(config["toolsets"])
+
     # Note: toolsets_factory will be called at runtime with deps
+
+    # Get additional agent kwargs (e.g., builtin_tools)
+    agent_kwargs = config.get("agent_kwargs", {})
 
     agent: Agent[Any, str] = Agent(
         model,
         system_prompt=config["instructions"],
+        **agent_kwargs,
     )
 
     # Register toolsets
