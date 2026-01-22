@@ -110,6 +110,56 @@ class TestCompileSubagent:
             call_kwargs = mock_agent_class.call_args
             assert call_kwargs[0][0] == "openai:gpt-3.5-turbo"
 
+    def test_compile_with_custom_toolsets(self):
+        """Test compiling subagent with custom toolsets."""
+        from pydantic_ai.toolsets import FunctionToolset
+
+        from subagents_pydantic_ai.toolset import _compile_subagent
+
+        custom_toolset: FunctionToolset[Any] = FunctionToolset(id="custom")
+
+        @custom_toolset.tool
+        async def custom_tool(x: str) -> str:
+            return x
+
+        config = SubAgentConfig(
+            name="test-agent",
+            description="Test agent",
+            instructions="Test instructions",
+            toolsets=[custom_toolset],
+        )
+
+        with patch("subagents_pydantic_ai.toolset.Agent") as mock_agent_class:
+            mock_agent = MagicMock()
+            mock_agent._register_toolset = MagicMock()
+            mock_agent_class.return_value = mock_agent
+            compiled = _compile_subagent(config, "openai:gpt-4")
+
+            assert compiled.agent is not None
+            # Should register both ask_parent and custom toolset
+            assert mock_agent._register_toolset.call_count == 2
+
+    def test_compile_with_agent_kwargs(self):
+        """Test compiling subagent with agent_kwargs (e.g., builtin_tools)."""
+        from subagents_pydantic_ai.toolset import _compile_subagent
+
+        config = SubAgentConfig(
+            name="test-agent",
+            description="Test agent",
+            instructions="Test instructions",
+            agent_kwargs={"retries": 3, "result_retries": 2},
+        )
+
+        with patch("subagents_pydantic_ai.toolset.Agent") as mock_agent_class:
+            mock_agent_class.return_value = MagicMock()
+            _compile_subagent(config, "openai:gpt-4")
+
+            # Verify agent_kwargs were passed
+            mock_agent_class.assert_called_once()
+            call_kwargs = mock_agent_class.call_args
+            assert call_kwargs.kwargs.get("retries") == 3
+            assert call_kwargs.kwargs.get("result_retries") == 2
+
 
 class TestCreateAskParentToolset:
     """Tests for _create_ask_parent_toolset."""
