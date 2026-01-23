@@ -30,9 +30,9 @@ class Deps:
 # Custom toolset for file operations
 def create_file_tools():
     """Create simple file operation tools."""
-    from pydantic_ai import Toolset
+    from pydantic_ai.toolsets import FunctionToolset
 
-    toolset = Toolset()
+    toolset = FunctionToolset()
 
     @toolset.tool
     async def read_file(path: str) -> str:
@@ -173,7 +173,7 @@ toolset = create_subagent_toolset(
 Use Pydantic AI's built-in tools:
 
 ```python
-from pydantic_ai import BuitinTools
+from pydantic_ai.builtin_tools import WebSearchTool
 
 subagents = [
     SubAgentConfig(
@@ -181,7 +181,7 @@ subagents = [
         description="Researches using web search",
         instructions="You research topics using web search.",
         agent_kwargs={
-            "builtin_tools": [BuitinTools.web_search],
+            "builtin_tools": [WebSearchTool()],
         },
     ),
 ]
