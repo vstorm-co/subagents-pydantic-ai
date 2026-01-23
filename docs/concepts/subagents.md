@@ -107,13 +107,13 @@ SubAgentConfig(
 ### With Built-in Tools
 
 ```python
-from pydantic_ai import BuitinTools
+from pydantic_ai.builtin_tools import WebSearchTool
 
 SubAgentConfig(
     name="web-researcher",
     description="Researches using web search",
     instructions="You research topics using web search.",
-    agent_kwargs={"builtin_tools": [BuitinTools.web_search]},
+    agent_kwargs={"builtin_tools": [WebSearchTool()]},
 )
 ```
 
