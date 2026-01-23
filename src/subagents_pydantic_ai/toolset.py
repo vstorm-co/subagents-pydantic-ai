@@ -78,15 +78,13 @@ def _compile_subagent(
     # Get additional agent kwargs (e.g., builtin_tools)
     agent_kwargs = config.get("agent_kwargs", {})
 
+    # Pass toolsets via constructor (proper pydantic-ai API)
     agent: Agent[Any, str] = Agent(
         model,
         system_prompt=config["instructions"],
+        toolsets=toolsets,
         **agent_kwargs,
     )
-
-    # Register toolsets
-    for ts in toolsets:
-        agent._register_toolset(ts)  # type: ignore[attr-defined]
 
     return CompiledSubAgent(
         name=config["name"],
@@ -275,11 +273,10 @@ def create_subagent_toolset(
         parent_deps = ctx.deps
         subagent_deps = parent_deps.clone_for_subagent(max_nesting_depth - 1)
 
-        # Apply toolsets from factory if provided
+        # Get runtime toolsets from factory if provided
+        runtime_toolsets: list[Any] | None = None
         if toolsets_factory:
             runtime_toolsets = toolsets_factory(subagent_deps)
-            for ts in runtime_toolsets:
-                agent._register_toolset(ts)  # type: ignore[attr-defined]
 
         # Generate task ID
         task_id = str(uuid.uuid4())[:8]
@@ -303,6 +300,7 @@ def create_subagent_toolset(
                 description=description,
                 deps=subagent_deps,
                 task_id=task_id,
+                runtime_toolsets=runtime_toolsets,
             )
         else:
             return await _run_async(
@@ -314,6 +312,7 @@ def create_subagent_toolset(
                 task_manager=task_manager,
                 message_bus=message_bus,
                 priority=priority,
+                runtime_toolsets=runtime_toolsets,
             )
 
     @toolset.tool
@@ -477,6 +476,7 @@ async def _run_sync(
     description: str,
     deps: Any,
     task_id: str,
+    runtime_toolsets: list[Any] | None = None,
 ) -> str:
     """Run a subagent task synchronously (blocking).
 
@@ -486,6 +486,7 @@ async def _run_sync(
         description: Task description.
         deps: Dependencies for the subagent.
         task_id: Unique task identifier.
+        runtime_toolsets: Optional toolsets to pass to agent.run().
 
     Returns:
         The subagent's response.
@@ -500,7 +501,8 @@ async def _run_sync(
     )
 
     try:
-        result = await agent.run(prompt, deps=deps)
+        # Pass runtime toolsets via agent.run() (proper pydantic-ai API)
+        result = await agent.run(prompt, deps=deps, toolsets=runtime_toolsets)
         return str(result.output)
     except Exception as e:
         return f"Error executing task: {e}"
@@ -515,6 +517,7 @@ async def _run_async(
     task_manager: TaskManager,
     message_bus: InMemoryMessageBus,
     priority: TaskPriority = TaskPriority.NORMAL,
+    runtime_toolsets: list[Any] | None = None,
 ) -> str:
     """Run a subagent task asynchronously (background).
 
@@ -527,6 +530,7 @@ async def _run_async(
         task_manager: Task manager for tracking.
         message_bus: Message bus for communication.
         priority: Task priority level.
+        runtime_toolsets: Optional toolsets to pass to agent.run().
 
     Returns:
         Task handle information as string.
@@ -559,7 +563,8 @@ async def _run_async(
         )
 
         try:
-            result = await agent.run(prompt, deps=deps)
+            # Pass runtime toolsets via agent.run() (proper pydantic-ai API)
+            result = await agent.run(prompt, deps=deps, toolsets=runtime_toolsets)
             handle.result = str(result.output)
             handle.status = TaskStatus.COMPLETED
         except asyncio.CancelledError:
