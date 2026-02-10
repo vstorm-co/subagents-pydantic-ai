@@ -29,7 +29,7 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Typing :: Typed",
 ]
-dependencies = ["pydantic>=2.0", "pydantic-ai-slim>=0.1.0"]
+dependencies = ["pydantic>=2.0", "pydantic-ai-slim>=1.38"]
 
 [project.urls]
 Homepage = "https://github.com/vstorm-co/subagents-pydantic-ai"

@@ -81,12 +81,9 @@ def _compile_subagent(
     agent: Agent[Any, str] = Agent(
         model,
         system_prompt=config["instructions"],
+        toolsets=toolsets,
         **agent_kwargs,
     )
-
-    # Register toolsets
-    for ts in toolsets:
-        agent._register_toolset(ts)  # type: ignore[attr-defined]
 
     return CompiledSubAgent(
         name=config["name"],
@@ -275,11 +272,8 @@ def create_subagent_toolset(
         parent_deps = ctx.deps
         subagent_deps = parent_deps.clone_for_subagent(max_nesting_depth - 1)
 
-        # Apply toolsets from factory if provided
-        if toolsets_factory:
-            runtime_toolsets = toolsets_factory(subagent_deps)
-            for ts in runtime_toolsets:
-                agent._register_toolset(ts)  # type: ignore[attr-defined]
+        # Build runtime toolsets from factory if provided
+        runtime_toolsets = toolsets_factory(subagent_deps) if toolsets_factory else None
 
         # Generate task ID
         task_id = str(uuid.uuid4())[:8]
@@ -303,6 +297,7 @@ def create_subagent_toolset(
                 description=description,
                 deps=subagent_deps,
                 task_id=task_id,
+                extra_toolsets=runtime_toolsets,
             )
         else:
             return await _run_async(
@@ -313,6 +308,7 @@ def create_subagent_toolset(
                 task_id=task_id,
                 task_manager=task_manager,
                 message_bus=message_bus,
+                extra_toolsets=runtime_toolsets,
                 priority=priority,
             )
 
@@ -477,6 +473,7 @@ async def _run_sync(
     description: str,
     deps: Any,
     task_id: str,
+    extra_toolsets: list[Any] | None = None,
 ) -> str:
     """Run a subagent task synchronously (blocking).
 
@@ -486,6 +483,7 @@ async def _run_sync(
         description: Task description.
         deps: Dependencies for the subagent.
         task_id: Unique task identifier.
+        extra_toolsets: Additional toolsets to pass to agent.run().
 
     Returns:
         The subagent's response.
@@ -499,8 +497,12 @@ async def _run_sync(
         max_questions=max_questions,
     )
 
+    run_kwargs: dict[str, Any] = {"deps": deps}
+    if extra_toolsets:
+        run_kwargs["toolsets"] = extra_toolsets
+
     try:
-        result = await agent.run(prompt, deps=deps)
+        result = await agent.run(prompt, **run_kwargs)
         return str(result.output)
     except Exception as e:
         return f"Error executing task: {e}"
@@ -515,6 +517,7 @@ async def _run_async(
     task_manager: TaskManager,
     message_bus: InMemoryMessageBus,
     priority: TaskPriority = TaskPriority.NORMAL,
+    extra_toolsets: list[Any] | None = None,
 ) -> str:
     """Run a subagent task asynchronously (background).
 
@@ -527,6 +530,7 @@ async def _run_async(
         task_manager: Task manager for tracking.
         message_bus: Message bus for communication.
         priority: Task priority level.
+        extra_toolsets: Additional toolsets to pass to agent.run().
 
     Returns:
         Task handle information as string.
@@ -558,8 +562,12 @@ async def _run_async(
             max_questions=max_questions,
         )
 
+        run_kwargs: dict[str, Any] = {"deps": deps}
+        if extra_toolsets:
+            run_kwargs["toolsets"] = extra_toolsets
+
         try:
-            result = await agent.run(prompt, deps=deps)
+            result = await agent.run(prompt, **run_kwargs)
             handle.result = str(result.output)
             handle.status = TaskStatus.COMPLETED
         except asyncio.CancelledError:

@@ -180,7 +180,6 @@ class TestCreateAgentFactoryToolset:
 
         with patch("subagents_pydantic_ai.factory.Agent") as mock_agent_class:
             mock_agent = MagicMock()
-            mock_agent._register_toolset = MagicMock()
             mock_agent_class.return_value = mock_agent
 
             result = await create_tool.function(
@@ -193,6 +192,10 @@ class TestCreateAgentFactoryToolset:
 
         assert "created successfully" in result
         assert "filesystem" in result
+        # Verify Agent was constructed with toolsets kwarg
+        mock_agent_class.assert_called_once()
+        call_kwargs = mock_agent_class.call_args
+        assert call_kwargs.kwargs.get("toolsets") is not None
 
     @pytest.mark.asyncio
     async def test_create_agent_invalid_capability(self, registry: DynamicAgentRegistry):
@@ -235,7 +238,6 @@ class TestCreateAgentFactoryToolset:
 
         with patch("subagents_pydantic_ai.factory.Agent") as mock_agent_class:
             mock_agent = MagicMock()
-            mock_agent._register_toolset = MagicMock()
             mock_agent_class.return_value = mock_agent
 
             result = await create_tool.function(
@@ -246,6 +248,10 @@ class TestCreateAgentFactoryToolset:
             )
 
         assert "created successfully" in result
+        # Verify Agent was constructed with toolsets from factory
+        mock_agent_class.assert_called_once()
+        call_kwargs = mock_agent_class.call_args
+        assert call_kwargs.kwargs.get("toolsets") is not None
 
     @pytest.mark.asyncio
     async def test_list_agents_empty(self, registry: DynamicAgentRegistry):
