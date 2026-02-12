@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.4] - 2025-02-12
+
+### Fixed
+
+- **Compatibility**: Replaced all `agent._register_toolset()` calls with pydantic-ai public API ([#5](https://github.com/vstorm-co/subagents-pydantic-ai/issues/5), [#6](https://github.com/vstorm-co/subagents-pydantic-ai/pull/6) by [@pedroallenrevez](https://github.com/pedroallenrevez))
+  - `_compile_subagent()`: toolsets passed to `Agent()` constructor via `toolsets=` parameter
+  - `task()` runtime toolsets: passed to `agent.run(toolsets=...)` instead of registering on agent instance
+  - `create_agent_factory_toolset()`: toolsets from factory/capabilities passed to `Agent()` constructor
+  - Fixes `AttributeError: 'Agent' object has no attribute '_register_toolset'` with pydantic-ai >= 1.38
+
+### Changed
+
+- Bumped minimum `pydantic-ai-slim` dependency from `>=0.1.0` to `>=1.38`
+
 ## [0.0.3] - 2025-01-23
 
 ### Fixed
