@@ -130,14 +130,14 @@ class TestCompileSubagent:
         )
 
         with patch("subagents_pydantic_ai.toolset.Agent") as mock_agent_class:
-            mock_agent = MagicMock()
-            mock_agent._register_toolset = MagicMock()
-            mock_agent_class.return_value = mock_agent
+            mock_agent_class.return_value = MagicMock()
             compiled = _compile_subagent(config, "openai:gpt-4")
 
             assert compiled.agent is not None
-            # Should register both ask_parent and custom toolset
-            assert mock_agent._register_toolset.call_count == 2
+            # Should pass toolsets (ask_parent + custom) to Agent constructor
+            call_kwargs = mock_agent_class.call_args
+            passed_toolsets = call_kwargs.kwargs.get("toolsets", [])
+            assert len(passed_toolsets) == 2
 
     def test_compile_with_agent_kwargs(self):
         """Test compiling subagent with agent_kwargs (e.g., builtin_tools)."""
@@ -1168,7 +1168,7 @@ class TestToolsetFunctionsCoverage:
 
     @pytest.mark.asyncio
     async def test_task_with_toolsets_factory(self):
-        """Test task applies toolsets_factory to agent."""
+        """Test task passes toolsets_factory toolsets to agent.run()."""
         config = SubAgentConfig(
             name="worker",
             description="Worker",
@@ -1176,7 +1176,6 @@ class TestToolsetFunctionsCoverage:
         )
 
         mock_agent = MagicMock()
-        mock_agent._register_toolset = MagicMock()
         mock_agent.run = AsyncMock(return_value=MockResult("done"))
 
         mock_compiled = CompiledSubAgent(
@@ -1206,7 +1205,11 @@ class TestToolsetFunctionsCoverage:
             ctx = MockRunContext(deps=MockDeps())
             await task_tool.function(ctx, "do something", "worker", "sync")
 
-            mock_agent._register_toolset.assert_called()
+            # Verify toolsets were passed to agent.run()
+            mock_agent.run.assert_called_once()
+            call_kwargs = mock_agent.run.call_args.kwargs
+            assert call_kwargs.get("toolsets") is not None
+            assert len(call_kwargs["toolsets"]) == 1
 
     @pytest.mark.asyncio
     async def test_check_task_completed(self):
