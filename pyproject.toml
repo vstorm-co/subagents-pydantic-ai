@@ -1,6 +1,6 @@
 [project]
 name = "subagents-pydantic-ai"
-version = "0.0.4"
+version = "0.0.3"
 description = "Subagent toolset for pydantic-ai with dual-mode execution and dynamic agent creation"
 readme = "README.md"
 license = { file = "LICENSE" }
