@@ -131,13 +131,14 @@ class TestCompileSubagent:
 
         with patch("subagents_pydantic_ai.toolset.Agent") as mock_agent_class:
             mock_agent = MagicMock()
-            mock_agent._register_toolset = MagicMock()
             mock_agent_class.return_value = mock_agent
             compiled = _compile_subagent(config, "openai:gpt-4")
 
             assert compiled.agent is not None
-            # Should register both ask_parent and custom toolset
-            assert mock_agent._register_toolset.call_count == 2
+            # Should pass both ask_parent and custom toolset via constructor
+            call_kwargs = mock_agent_class.call_args
+            passed_toolsets = call_kwargs.kwargs.get("toolsets", [])
+            assert len(passed_toolsets) == 2
 
     def test_compile_with_agent_kwargs(self):
         """Test compiling subagent with agent_kwargs (e.g., builtin_tools)."""
@@ -1176,7 +1177,6 @@ class TestToolsetFunctionsCoverage:
         )
 
         mock_agent = MagicMock()
-        mock_agent._register_toolset = MagicMock()
         mock_agent.run = AsyncMock(return_value=MockResult("done"))
 
         mock_compiled = CompiledSubAgent(
@@ -1206,7 +1206,57 @@ class TestToolsetFunctionsCoverage:
             ctx = MockRunContext(deps=MockDeps())
             await task_tool.function(ctx, "do something", "worker", "sync")
 
-            mock_agent._register_toolset.assert_called()
+            # Verify agent.run was called with toolsets kwarg
+            mock_agent.run.assert_called_once()
+            call_kwargs = mock_agent.run.call_args
+            assert "toolsets" in call_kwargs.kwargs
+
+    @pytest.mark.asyncio
+    async def test_task_with_toolsets_factory_async(self):
+        """Test async task passes toolsets_factory toolsets to agent.run()."""
+        config = SubAgentConfig(
+            name="worker",
+            description="Worker",
+            instructions="Work",
+        )
+
+        mock_agent = MagicMock()
+        mock_agent.run = AsyncMock(return_value=MockResult("done"))
+
+        mock_compiled = CompiledSubAgent(
+            name=config["name"],
+            description=config["description"],
+            config=config,
+            agent=mock_agent,
+        )
+
+        def mock_toolsets_factory(deps):
+            from pydantic_ai.toolsets import FunctionToolset
+
+            return [FunctionToolset(id="mock")]
+
+        with patch(
+            "subagents_pydantic_ai.toolset._compile_subagent",
+            return_value=mock_compiled,
+        ):
+            toolset = create_subagent_toolset(
+                subagents=[config],
+                include_general_purpose=False,
+                toolsets_factory=mock_toolsets_factory,
+            )
+
+            task_tool = toolset.tools["task"]
+
+            ctx = MockRunContext(deps=MockDeps())
+            await task_tool.function(ctx, "do something", "worker", "async")
+
+            # Wait for async task to complete
+            await asyncio.sleep(0.1)
+
+            # Verify agent.run was called with toolsets kwarg
+            mock_agent.run.assert_called_once()
+            call_kwargs = mock_agent.run.call_args
+            assert "toolsets" in call_kwargs.kwargs
 
     @pytest.mark.asyncio
     async def test_check_task_completed(self):

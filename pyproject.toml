@@ -1,6 +1,6 @@
 [project]
 name = "subagents-pydantic-ai"
-version = "0.0.3"
+version = "0.0.4"
 description = "Subagent toolset for pydantic-ai with dual-mode execution and dynamic agent creation"
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -29,7 +29,7 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Typing :: Typed",
 ]
-dependencies = ["pydantic>=2.0", "pydantic-ai-slim>=0.1.0"]
+dependencies = ["pydantic>=2.0", "pydantic-ai-slim>=1.38"]
 
 [project.urls]
 Homepage = "https://github.com/vstorm-co/subagents-pydantic-ai"
