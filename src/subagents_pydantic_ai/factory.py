@@ -153,20 +153,23 @@ def create_agent_factory_toolset(
 
         # Create agent
         try:
-            # Collect toolsets from factory or capabilities
-            agent_toolsets: list[Any] = []
-            if toolsets_factory:
-                agent_toolsets.extend(toolsets_factory(ctx.deps))
-            elif capabilities and capabilities_map:
-                for cap_name in capabilities:
-                    cap_factory = capabilities_map[cap_name]
-                    agent_toolsets.extend(cap_factory(ctx.deps))
-
             agent: Agent[Any, str] = Agent(
                 actual_model,
                 system_prompt=instructions,
-                toolsets=agent_toolsets or None,
             )
+
+            # Apply toolsets from factory if provided (takes priority)
+            if toolsets_factory:
+                runtime_toolsets = toolsets_factory(ctx.deps)
+                for ts in runtime_toolsets:
+                    agent._register_toolset(ts)  # type: ignore[attr-defined]
+            # Otherwise, apply toolsets from capabilities
+            elif capabilities and capabilities_map:
+                for cap_name in capabilities:
+                    cap_factory = capabilities_map[cap_name]
+                    cap_toolsets = cap_factory(ctx.deps)
+                    for ts in cap_toolsets:
+                        agent._register_toolset(ts)  # type: ignore[attr-defined]
 
             registry.register(config, agent)
 
