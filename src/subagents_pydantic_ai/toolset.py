@@ -13,6 +13,7 @@ from datetime import datetime
 from typing import Any, Literal
 
 from pydantic_ai import Agent, RunContext
+from pydantic_ai.models import Model
 from pydantic_ai.toolsets import FunctionToolset
 
 from subagents_pydantic_ai.message_bus import InMemoryMessageBus, TaskManager
@@ -49,18 +50,19 @@ def _create_general_purpose_config() -> SubAgentConfig:
 
 def _compile_subagent(
     config: SubAgentConfig,
-    default_model: str,
+    default_model: str | Model,
 ) -> CompiledSubAgent:
     """Compile a subagent configuration into a ready-to-use agent.
 
     Args:
         config: The subagent configuration.
         default_model: Default model to use if not specified in config.
+            Can be a model string or a pre-configured Model instance.
 
     Returns:
         CompiledSubAgent with agent instance.
     """
-    model = config.get("model", default_model)
+    model: str | Model = config.get("model", default_model)
 
     # Build toolsets list
     toolsets: list[Any] = []
@@ -154,7 +156,7 @@ def _create_ask_parent_toolset() -> FunctionToolset[Any]:
 
 def create_subagent_toolset(
     subagents: list[SubAgentConfig] | None = None,
-    default_model: str = "openai:gpt-4.1",
+    default_model: str | Model = "openai:gpt-4.1",
     toolsets_factory: ToolsetFactory | None = None,
     include_general_purpose: bool = True,
     max_nesting_depth: int = 0,
@@ -175,6 +177,7 @@ def create_subagent_toolset(
         subagents: List of subagent configurations. If None, only
             general-purpose subagent will be available.
         default_model: Default model for subagents that don't specify one.
+            Can be a model string or a pre-configured Model instance.
         toolsets_factory: Factory function that creates toolsets for subagents.
             Called with deps when running a task.
         include_general_purpose: Whether to include the default general-purpose
