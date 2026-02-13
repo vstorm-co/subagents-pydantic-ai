@@ -11,7 +11,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Literal, Union
+from typing import Any, Literal
 
 from pydantic_ai.models import Model
 from typing_extensions import NotRequired, TypedDict
@@ -166,7 +166,7 @@ class SubAgentConfig(TypedDict, total=False):
     name: str
     description: str
     instructions: str
-    model: NotRequired[Union[str, Model]]
+    model: NotRequired[str | Model]
     can_ask_questions: NotRequired[bool]
     max_questions: NotRequired[int]
     preferred_mode: NotRequired[Literal["sync", "async", "auto"]]
