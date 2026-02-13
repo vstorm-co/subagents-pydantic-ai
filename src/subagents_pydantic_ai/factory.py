@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import Any
 
 from pydantic_ai import Agent, RunContext
+from pydantic_ai.models import Model
 from pydantic_ai.toolsets import FunctionToolset
 
 from subagents_pydantic_ai.protocols import SubAgentDepsProtocol
@@ -22,7 +23,7 @@ CapabilityFactory = ToolsetFactory
 def create_agent_factory_toolset(
     registry: DynamicAgentRegistry,
     allowed_models: list[str] | None = None,
-    default_model: str = "openai:gpt-4.1",
+    default_model: str | Model = "openai:gpt-4.1",
     max_agents: int = 10,
     toolsets_factory: ToolsetFactory | None = None,
     capabilities_map: dict[str, CapabilityFactory] | None = None,
@@ -128,9 +129,9 @@ def create_agent_factory_toolset(
         if registry.exists(name):
             return f"Error: Agent '{name}' already exists"
 
-        # Validate model
+        # Validate model — only check allowed_models for string model names
         actual_model = model or default_model
-        if allowed_models and actual_model not in allowed_models:
+        if isinstance(actual_model, str) and allowed_models and actual_model not in allowed_models:
             allowed = ", ".join(allowed_models)
             return f"Error: Model '{actual_model}' is not allowed. Use one of: {allowed}"
 

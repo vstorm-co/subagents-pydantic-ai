@@ -23,6 +23,7 @@ from subagents_pydantic_ai.prompts import (
     get_task_instructions_prompt,
 )
 from subagents_pydantic_ai.protocols import SubAgentDepsProtocol
+from subagents_pydantic_ai.registry import DynamicAgentRegistry
 from subagents_pydantic_ai.types import (
     AgentMessage,
     CompiledSubAgent,
@@ -154,12 +155,53 @@ def _create_ask_parent_toolset() -> FunctionToolset[Any]:
     return toolset
 
 
+def _resolve_agent(
+    subagent_type: str,
+    compiled: dict[str, CompiledSubAgent],
+    registry: DynamicAgentRegistry | None,
+) -> tuple[Any | None, SubAgentConfig | None, bool, str | None]:
+    """Resolve an agent by name from compiled agents or dynamic registry.
+
+    Returns:
+        Tuple of (agent, config, from_registry, error_message).
+        If error_message is set, the other values should be ignored.
+    """
+    if subagent_type in compiled:
+        subagent = compiled[subagent_type]
+        if subagent.agent is None:
+            return (
+                None,
+                None,
+                False,
+                f"Error: Subagent '{subagent_type}' is not properly initialized",
+            )
+        return subagent.agent, subagent.config, False, None
+
+    if registry is not None:
+        agent = registry.get(subagent_type)
+        config = registry.get_config(subagent_type)
+        if agent is not None and config is not None:
+            return agent, config, True, None
+
+    available = list(compiled.keys())
+    if registry is not None:
+        available.extend(registry.list_agents())
+    available_str = ", ".join(available)
+    return (
+        None,
+        None,
+        False,
+        f"Error: Unknown subagent '{subagent_type}'. Available: {available_str}",
+    )
+
+
 def create_subagent_toolset(
     subagents: list[SubAgentConfig] | None = None,
     default_model: str | Model = "openai:gpt-4.1",
     toolsets_factory: ToolsetFactory | None = None,
     include_general_purpose: bool = True,
     max_nesting_depth: int = 0,
+    registry: DynamicAgentRegistry | None = None,
     id: str | None = None,
 ) -> FunctionToolset[Any]:
     """Create a toolset for delegating tasks to subagents.
@@ -184,6 +226,9 @@ def create_subagent_toolset(
             subagent. Set to False if you want only specialized subagents.
         max_nesting_depth: Maximum depth for nested subagents. 0 means
             subagents cannot spawn their own subagents.
+        registry: Optional dynamic agent registry for runtime-created agents.
+            When provided, the task tool will also check this registry for
+            agents created via the agent factory toolset.
         id: Optional toolset ID. Defaults to "subagents".
 
     Returns:
@@ -226,6 +271,11 @@ def create_subagent_toolset(
 
     # Build available subagents description for tool docstring
     subagent_list = "\n".join(f"- {name}: {c.description}" for name, c in compiled.items())
+    registry_note = (
+        "\nAdditional agents may be created at runtime and will also be available."
+        if registry is not None
+        else ""
+    )
 
     toolset: FunctionToolset[Any] = FunctionToolset(id=id or "subagents")
 
@@ -247,6 +297,7 @@ def create_subagent_toolset(
 
         Available subagents:
         {subagent_list}
+        {registry_note}
 
         Args:
             ctx: The run context with dependencies.
@@ -262,24 +313,18 @@ def create_subagent_toolset(
             In sync mode: The subagent's response.
             In async mode: Task handle information with task_id.
         """
-        # Validate subagent_type
-        if subagent_type not in compiled:
-            available = ", ".join(compiled.keys())
-            return f"Error: Unknown subagent '{subagent_type}'. Available: {available}"
-
-        subagent = compiled[subagent_type]
-        config = subagent.config
-        agent = subagent.agent
-
-        if agent is None:
-            return f"Error: Subagent '{subagent_type}' is not properly initialized"
+        # Resolve agent — check compiled agents first, then dynamic registry
+        agent, config, from_registry, error = _resolve_agent(subagent_type, compiled, registry)
+        if error is not None or agent is None or config is None:
+            return error or f"Error: Unknown subagent '{subagent_type}'"
 
         # Create deps for subagent
         parent_deps = ctx.deps
         subagent_deps = parent_deps.clone_for_subagent(max_nesting_depth - 1)
 
-        # Apply toolsets from factory if provided
-        if toolsets_factory:
+        # Apply toolsets from factory only for compiled agents
+        # (registry agents already have toolsets applied at creation time)
+        if not from_registry and toolsets_factory:
             runtime_toolsets = toolsets_factory(subagent_deps)
             for ts in runtime_toolsets:
                 agent._register_toolset(ts)  # type: ignore[attr-defined]
