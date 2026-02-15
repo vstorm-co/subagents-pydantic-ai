@@ -153,7 +153,7 @@ toolset = create_subagent_toolset(
 
 ## Dynamic Agent Creation
 
-Create agents on-the-fly based on task requirements:
+Create agents on-the-fly and delegate to them seamlessly:
 
 ```python
 from subagents_pydantic_ai import (
@@ -168,7 +168,8 @@ agent = Agent(
     "openai:gpt-4o",
     deps_type=Deps,
     toolsets=[
-        create_subagent_toolset(),
+        # Pass registry so task() can resolve dynamically created agents
+        create_subagent_toolset(registry=registry),
         create_agent_factory_toolset(
             registry=registry,
             allowed_models=["openai:gpt-4o", "openai:gpt-4o-mini"],
@@ -176,6 +177,10 @@ agent = Agent(
         ),
     ],
 )
+
+# Now the agent can:
+# 1. create_agent(name="analyst", ...) — creates a new agent in registry
+# 2. task(description="...", subagent_type="analyst") — delegates to it
 ```
 
 ## Subagent Questions
@@ -204,6 +209,18 @@ The parent agent can then respond using `answer_subagent(task_id, answer)`.
 | `list_active_tasks` | List all running background tasks |
 | `soft_cancel_task` | Request cooperative cancellation |
 | `hard_cancel_task` | Immediately cancel a task |
+
+## Per-Subagent Configuration
+
+```python
+SubAgentConfig(
+    name="coder",
+    description="Writes and reviews code",
+    instructions="Follow project coding rules.",
+    context_files=["/CODING_RULES.md"],  # Loaded by consumer library
+    extra={"memory": "project", "cost_budget": 100},  # Custom metadata
+)
+```
 
 ## Architecture
 

@@ -416,6 +416,45 @@ class TestSubAgentConfigExtended:
         )
         assert config["typically_needs_context"] is True
 
+    def test_context_files_field(self):
+        """Test context_files field in SubAgentConfig."""
+        config = SubAgentConfig(
+            name="coder",
+            description="Code writer",
+            instructions="Write code",
+            context_files=["/agents/coder/AGENTS.md", "/CODING_RULES.md"],
+        )
+        assert config["context_files"] == ["/agents/coder/AGENTS.md", "/CODING_RULES.md"]
+
+    def test_context_files_optional(self):
+        """Test context_files is optional in SubAgentConfig."""
+        config = SubAgentConfig(
+            name="test",
+            description="Test",
+            instructions="Do things",
+        )
+        assert "context_files" not in config
+
+    def test_extra_field(self):
+        """Test extra field for consumer library extensibility."""
+        config = SubAgentConfig(
+            name="reviewer",
+            description="Code reviewer",
+            instructions="Review code",
+            extra={"memory": "project", "cost_budget": 100},
+        )
+        assert config["extra"]["memory"] == "project"
+        assert config["extra"]["cost_budget"] == 100
+
+    def test_extra_field_optional(self):
+        """Test extra field is optional in SubAgentConfig."""
+        config = SubAgentConfig(
+            name="test",
+            description="Test",
+            instructions="Do things",
+        )
+        assert "extra" not in config
+
 
 class TestTaskHandleExtended:
     """Tests for extended TaskHandle with priority."""

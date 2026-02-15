@@ -82,14 +82,16 @@ task(
 
 ### Decision Logic
 
-The `decide_execution_mode()` function considers:
+The [`decide_execution_mode()`][subagents_pydantic_ai.types.decide_execution_mode] function considers the following in order of priority:
 
-1. **Explicit override**: If `force_mode` is set (not "auto"), use it
-2. **Config preference**: Subagent's `preferred_mode` setting
-3. **User context**: Tasks needing user context → sync
-4. **Complexity**: Complex + independent → async
-5. **Simplicity**: Simple tasks → sync
-6. **Independence**: Can run without input → async
+1. **Explicit override**: If `force_mode` is set (not "auto"), use it directly
+2. **Config preference**: Subagent's `preferred_mode` setting (if not "auto")
+3. **User context**: Tasks requiring user context → sync
+4. **Clarification + time-sensitive**: May need clarification AND is time-sensitive → sync
+5. **Complexity + independence**: Complex tasks that can run independently → async
+6. **Simplicity**: Simple tasks → sync
+7. **Independence fallback**: Moderate complexity that can run independently → async
+8. **Final default**: Everything else → sync
 
 ```python
 from subagents_pydantic_ai import decide_execution_mode, TaskCharacteristics
@@ -106,9 +108,107 @@ mode = decide_execution_mode(characteristics, config)
 # Returns "async" for complex independent tasks
 ```
 
+### TaskCharacteristics Fields
+
+The [`TaskCharacteristics`][subagents_pydantic_ai.types.TaskCharacteristics] dataclass holds the properties used for auto-mode decision-making:
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `estimated_complexity` | `"simple" \| "moderate" \| "complex"` | `"moderate"` | Expected task complexity level |
+| `requires_user_context` | `bool` | `False` | Whether task needs ongoing user interaction |
+| `is_time_sensitive` | `bool` | `False` | Whether quick response is important |
+| `can_run_independently` | `bool` | `True` | Whether task can complete without further input |
+| `may_need_clarification` | `bool` | `False` | Whether task might need clarifying questions |
+
+These fields can be set explicitly when calling the `task()` tool, or they are inferred from the subagent's `SubAgentConfig` at runtime.
+
+### Auto-Mode Decision Examples
+
+The following table shows how different combinations of `TaskCharacteristics` resolve to sync or async:
+
+| Scenario | Complexity | User Context | Time Sensitive | Independent | Clarification | Result |
+|----------|-----------|-------------|---------------|-------------|--------------|--------|
+| Quick lookup | `simple` | `False` | `True` | `True` | `False` | **sync** |
+| Deep research | `complex` | `False` | `False` | `True` | `False` | **async** |
+| Interactive editing | `moderate` | `True` | `False` | `False` | `True` | **sync** |
+| Background analysis | `moderate` | `False` | `False` | `True` | `False` | **async** |
+| Urgent clarification | `moderate` | `False` | `True` | `True` | `True` | **sync** |
+| Complex but dependent | `complex` | `False` | `False` | `False` | `True` | **sync** |
+
+#### Example 1: Auto picks sync for a simple task
+
+```python
+# Simple question answering - auto resolves to sync
+task(
+    description="What is the capital of France?",
+    subagent_type="general-purpose",
+    mode="auto",
+    complexity="simple",
+)
+# Auto-mode sees: simple complexity → sync
+# Parent gets the answer immediately
+```
+
+#### Example 2: Auto picks async for complex independent work
+
+```python
+# Deep research - auto resolves to async
+task(
+    description="Analyze the codebase architecture and produce a report",
+    subagent_type="researcher",
+    mode="auto",
+    complexity="complex",
+)
+# Auto-mode sees: complex + can_run_independently → async
+# Returns task handle immediately, parent continues working
+```
+
+#### Example 3: Auto picks sync when user context is needed
+
+```python
+# Task needing ongoing user interaction - auto resolves to sync
+task(
+    description="Help me refine this paragraph",
+    subagent_type="editor",
+    mode="auto",
+    requires_user_context=True,
+)
+# Auto-mode sees: requires_user_context=True → sync
+# Ensures interactive back-and-forth is possible
+```
+
+#### Example 4: Auto picks sync for time-sensitive tasks that may need clarification
+
+```python
+# Urgent task that might need questions - auto resolves to sync
+task(
+    description="Fix this production bug quickly",
+    subagent_type="coder",
+    mode="auto",
+    complexity="moderate",
+    may_need_clarification=True,
+)
+# Auto-mode sees: may_need_clarification + is_time_sensitive → sync
+# (assuming the subagent config has is_time_sensitive context)
+```
+
+#### Example 5: Auto picks async for moderate independent work
+
+```python
+# Moderate task that can run alone - auto resolves to async
+task(
+    description="Generate test cases for the user service",
+    subagent_type="coder",
+    mode="auto",
+    complexity="moderate",
+)
+# Auto-mode sees: moderate + can_run_independently → async
+# Parent can start other tasks in parallel
+```
+
 ### Configuring Auto-Mode Hints
 
-Guide auto-mode with subagent configuration:
+Guide auto-mode with subagent configuration. The `preferred_mode`, `typical_complexity`, and `typically_needs_context` fields in `SubAgentConfig` provide hints to the auto-mode decision logic:
 
 ```python
 SubAgentConfig(
@@ -118,6 +218,28 @@ SubAgentConfig(
     preferred_mode="async",  # Hint: prefer async
     typical_complexity="complex",  # Usually complex tasks
     typically_needs_context=False,  # Can work independently
+)
+```
+
+When a subagent has `preferred_mode` set to "sync" or "async", auto-mode respects that preference before evaluating task characteristics. The `typical_complexity` value is used as a fallback when the caller does not pass an explicit `complexity` parameter to `task()`.
+
+```python
+# This subagent always runs sync due to preferred_mode
+SubAgentConfig(
+    name="quick-helper",
+    description="Answers simple questions instantly",
+    instructions="...",
+    preferred_mode="sync",  # Always sync, regardless of characteristics
+)
+
+# This subagent lets auto-mode decide but hints at complexity
+SubAgentConfig(
+    name="analyst",
+    description="Performs data analysis",
+    instructions="...",
+    preferred_mode="auto",  # Let auto decide
+    typical_complexity="complex",  # Hint: tasks are usually complex
+    typically_needs_context=False,  # Hint: can work independently
 )
 ```
 

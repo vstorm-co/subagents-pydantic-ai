@@ -165,6 +165,133 @@ Always ask before making assumptions about:
 toolset = create_subagent_toolset(subagents=subagents)
 ```
 
+## The `answer_subagent` Tool
+
+The `answer_subagent` tool is how a parent agent responds to questions from subagents. It is part of the toolset created by [`create_subagent_toolset()`][subagents_pydantic_ai.toolset.create_subagent_toolset].
+
+### How It Works
+
+1. A subagent calls `ask_parent(question)` during task execution
+2. For async tasks, the task status changes to `WAITING_FOR_ANSWER` and `handle.pending_question` is set to the question text
+3. The parent discovers the question by calling `check_task(task_id)` (async) or sees it inline (sync)
+4. The parent calls `answer_subagent(task_id, answer)` to provide the response
+5. The tool creates an `ANSWER` message on the message bus and resets the task status to `RUNNING`
+6. The subagent receives the answer and continues execution
+
+### When the Parent Should Use It
+
+The parent uses `answer_subagent` whenever `check_task` reports a `WAITING_FOR_ANSWER` status. In a typical workflow:
+
+```python
+# Parent checks on a background task
+check_task(task_id="abc123")
+# Response: "Task: abc123
+#            Subagent: data-analyst
+#            Status: waiting_for_answer
+#            Question: Should I use gross or net revenue for the margin calculation?"
+
+# Parent provides the answer
+answer_subagent(task_id="abc123", answer="Use net revenue")
+# Response: "Answer sent to task 'abc123'"
+```
+
+### Validation and Error Handling
+
+The tool validates before sending:
+
+- **Task not found**: Returns an error if the `task_id` does not exist
+- **Wrong status**: Returns an error if the task is not in `WAITING_FOR_ANSWER` state (e.g., already completed or still running without a question)
+- **Subagent unavailable**: Returns an error if the subagent's message bus channel is no longer registered
+
+```python
+# Attempting to answer a task that isn't waiting
+answer_subagent(task_id="abc123", answer="Use net revenue")
+# Response: "Error: Task 'abc123' is not waiting for an answer (status: running)"
+```
+
+### Complete Async Q&A Example
+
+```python
+import asyncio
+from dataclasses import dataclass, field
+from typing import Any
+
+from pydantic_ai import Agent
+from subagents_pydantic_ai import create_subagent_toolset, SubAgentConfig
+
+
+@dataclass
+class Deps:
+    subagents: dict[str, Any] = field(default_factory=dict)
+
+    def clone_for_subagent(self, max_depth: int = 0) -> "Deps":
+        return Deps(subagents={} if max_depth <= 0 else self.subagents.copy())
+
+
+subagents = [
+    SubAgentConfig(
+        name="auditor",
+        description="Audits financial data with clarifying questions",
+        instructions="""You audit financial records.
+
+Before proceeding, clarify:
+- Which fiscal year to audit
+- Whether to include subsidiaries
+- Which accounting standard (GAAP or IFRS)
+
+Use ask_parent() for each clarification.
+""",
+        can_ask_questions=True,
+        max_questions=3,
+        preferred_mode="async",
+    ),
+]
+
+toolset = create_subagent_toolset(subagents=subagents)
+
+agent = Agent(
+    "openai:gpt-4o",
+    deps_type=Deps,
+    toolsets=[toolset],
+    system_prompt="""You manage financial auditing tasks.
+
+When an auditor asks a question:
+1. Check task status with check_task()
+2. If WAITING_FOR_ANSWER, use answer_subagent() to respond
+3. Continue checking until the audit is complete
+""",
+)
+
+
+async def main():
+    deps = Deps()
+
+    # Turn 1: Start audit
+    result1 = await agent.run("Audit the company finances", deps=deps)
+    print(result1.output)
+    # "Started audit task. Task ID: audit-abc"
+
+    # Turn 2: Check status, answer question
+    result2 = await agent.run(
+        "Check the audit task and answer any questions",
+        deps=deps,
+        message_history=result1.all_messages(),
+    )
+    print(result2.output)
+    # "Auditor asks: Which fiscal year? I answered: FY 2025"
+
+    # Turn 3: Continue checking, answer more questions or get results
+    result3 = await agent.run(
+        "Check audit progress",
+        deps=deps,
+        message_history=result2.all_messages(),
+    )
+    print(result3.output)
+
+
+asyncio.run(main())
+```
+
 ## Best Practices
 
 ### 1. Set Appropriate Limits
@@ -201,6 +328,20 @@ If you've asked a question and been waiting a long time:
 - Proceed with the most reasonable assumption
 - Clearly document your assumption in the output
 - Note that results may need revision
+"""
+```
+
+### 4. Coach the Parent on Answering
+
+Include guidance in the parent agent's system prompt so it knows how to handle questions:
+
+```python
+system_prompt="""
+When you see a subagent question via check_task():
+- Read the question carefully
+- Provide a clear, actionable answer using answer_subagent()
+- If you don't know, say so explicitly rather than guessing
+- Check back after answering to see if more questions arise
 """
 ```
 
