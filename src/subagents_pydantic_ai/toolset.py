@@ -156,6 +156,7 @@ def create_subagent_toolset(
     include_general_purpose: bool = True,
     max_nesting_depth: int = 0,
     id: str | None = None,
+    registry: Any | None = None,
 ) -> FunctionToolset[Any]:
     """Create a toolset for delegating tasks to subagents.
 
@@ -256,12 +257,23 @@ def create_subagent_toolset(
             In sync mode: The subagent's response.
             In async mode: Task handle information with task_id.
         """
-        # Validate subagent_type
-        if subagent_type not in compiled:
-            available = ", ".join(compiled.keys())
+        # Validate subagent_type — check static compiled dict first, then dynamic registry
+        if subagent_type in compiled:
+            subagent = compiled[subagent_type]
+        elif (
+            registry is not None
+            and hasattr(registry, "get_compiled")
+            and registry.get_compiled(subagent_type)
+        ):
+            subagent = registry.get_compiled(subagent_type)
+        else:
+            # Build available list from both sources
+            available_names = list(compiled.keys())
+            if registry is not None and hasattr(registry, "list_agents"):
+                available_names.extend(registry.list_agents())
+            available = ", ".join(available_names)
             return f"Error: Unknown subagent '{subagent_type}'. Available: {available}"
 
-        subagent = compiled[subagent_type]
         config = subagent.config
         agent = subagent.agent
 

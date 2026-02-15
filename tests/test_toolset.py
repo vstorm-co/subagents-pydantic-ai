@@ -345,6 +345,73 @@ class TestCreateSubagentToolset:
             assert "Unknown subagent" in result
 
     @pytest.mark.asyncio
+    async def test_task_unknown_subagent_with_registry(self):
+        """Test task with unknown subagent includes registry agents in error."""
+        config = SubAgentConfig(
+            name="helper",
+            description="Helps",
+            instructions="Help",
+        )
+        registry = MagicMock()
+        registry.get_compiled.return_value = None
+        registry.list_agents.return_value = ["dynamic-agent"]
+
+        with patch(
+            "subagents_pydantic_ai.toolset._compile_subagent",
+            return_value=_make_mock_compiled_subagent(config),
+        ):
+            toolset = create_subagent_toolset(
+                subagents=[config],
+                include_general_purpose=False,
+                registry=registry,
+            )
+
+            task_tool = toolset.tools["task"]
+
+            ctx = MockRunContext(deps=MockDeps())
+            result = await task_tool.function(ctx, "do something", "nonexistent", "sync")
+
+            assert "Unknown subagent" in result
+            assert "dynamic-agent" in result
+
+    @pytest.mark.asyncio
+    async def test_task_resolved_via_registry(self):
+        """Test task resolved through dynamic registry lookup."""
+        config = SubAgentConfig(
+            name="static-agent",
+            description="Static",
+            instructions="Static agent",
+        )
+        dynamic_config = SubAgentConfig(
+            name="dynamic-agent",
+            description="Dynamic",
+            instructions="Dynamic agent",
+        )
+        dynamic_compiled = _make_mock_compiled_subagent(dynamic_config)
+        # Set up agent.run to return a mock result
+        dynamic_compiled.agent.run = AsyncMock(return_value=MockResult("dynamic result"))
+
+        registry = MagicMock()
+        registry.get_compiled.return_value = dynamic_compiled
+
+        with patch(
+            "subagents_pydantic_ai.toolset._compile_subagent",
+            return_value=_make_mock_compiled_subagent(config),
+        ):
+            toolset = create_subagent_toolset(
+                subagents=[config],
+                include_general_purpose=False,
+                registry=registry,
+            )
+
+            task_tool = toolset.tools["task"]
+
+            ctx = MockRunContext(deps=MockDeps())
+            result = await task_tool.function(ctx, "do something", "dynamic-agent", "sync")
+
+            assert "dynamic result" in result
+
+    @pytest.mark.asyncio
     async def test_check_task_not_found(self):
         """Test check_task with non-existent task."""
         config = SubAgentConfig(

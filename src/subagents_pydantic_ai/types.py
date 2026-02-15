@@ -150,6 +150,14 @@ class SubAgentConfig(TypedDict, total=False):
         typically_needs_context: Whether this subagent typically needs user context
         toolsets: Additional toolsets to register with the subagent
         agent_kwargs: Additional kwargs passed to Agent constructor (e.g., builtin_tools)
+        context_files: List of context file paths in the backend.
+            When used with pydantic-deep, these are loaded via ContextToolset
+            and injected into this subagent's system prompt. Each subagent
+            can have its own context files.
+        extra: Generic extensibility dict for consumer libraries.
+            subagents-pydantic-ai does not read this field — it's carried
+            through for consumers like pydantic-deep to use freely.
+            Example keys: ``memory``, ``team``, ``cost_budget``.
 
     Example with builtin_tools:
         ```python
@@ -158,6 +166,16 @@ class SubAgentConfig(TypedDict, total=False):
             description="Research agent with web search",
             instructions="You research topics using web search.",
             agent_kwargs={"builtin_tools": [BuitinTools.web_search]},
+        )
+        ```
+
+    Example with per-subagent context:
+        ```python
+        SubAgentConfig(
+            name="coder",
+            description="Code writer",
+            instructions="You write code following project rules.",
+            context_files=["/agents/coder/AGENTS.md", "/CODING_RULES.md"],
         )
         ```
     """
@@ -173,6 +191,8 @@ class SubAgentConfig(TypedDict, total=False):
     typically_needs_context: NotRequired[bool]
     toolsets: NotRequired[list[Any]]
     agent_kwargs: NotRequired[dict[str, Any]]
+    context_files: NotRequired[list[str]]
+    extra: NotRequired[dict[str, Any]]
 
 
 def _generate_message_id() -> str:

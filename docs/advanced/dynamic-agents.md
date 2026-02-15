@@ -48,7 +48,7 @@ agent = Agent(
 
 ## DynamicAgentRegistry
 
-The registry tracks dynamically created agents:
+The [`DynamicAgentRegistry`][subagents_pydantic_ai.registry.DynamicAgentRegistry] tracks dynamically created agents. It stores the `Agent` instance, the `SubAgentConfig`, and a [`CompiledSubAgent`][subagents_pydantic_ai.types.CompiledSubAgent] for each registered agent.
 
 ```python
 from subagents_pydantic_ai import DynamicAgentRegistry
@@ -59,11 +59,121 @@ registry = DynamicAgentRegistry()
 agents = registry.list_agents()
 
 # Get a specific agent
-agent = registry.get_agent("custom-analyst")
+agent = registry.get("custom-analyst")
 
 # Remove an agent
-registry.remove_agent("custom-analyst")
+registry.remove("custom-analyst")
 ```
+
+### Registry Lifecycle
+
+The lifecycle of a dynamically created agent follows four stages:
+
+```
+Creation → Registration → Usage → Removal
+```
+
+#### 1. Creation
+
+An agent is created when the parent calls `create_agent()` through the factory toolset. The factory validates the name, model, and capabilities, then builds a `pydantic-ai` `Agent` instance.
+
+#### 2. Registration
+
+The agent, its `SubAgentConfig`, and a `CompiledSubAgent` wrapper are stored together in the registry via `registry.register(config, agent)`. At this point the agent becomes discoverable by the `task()` tool.
+
+```python
+# Internal flow (handled by create_agent_factory_toolset):
+config = SubAgentConfig(name="rust-expert", description="...", instructions="...")
+agent = Agent("openai:gpt-4.1", system_prompt=config["instructions"])
+registry.register(config, agent)
+```
+
+#### 3. Usage
+
+Once registered, the `task()` tool can delegate work to the dynamic agent by name. The toolset looks up the agent in the compiled dict first, then falls back to the registry:
+
+```python
+# Parent agent calls:
+task(description="Review this Rust code", subagent_type="rust-expert", mode="sync")
+```
+
+#### 4. Removal
+
+When a dynamic agent is no longer needed, the parent calls `remove_agent()` through the factory toolset. This removes all three entries (agent, config, compiled) from the registry:
+
+```python
+# Parent agent calls:
+remove_agent(name="rust-expert")
+```
+
+### Registry Methods
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `register(config, agent)` | `None` | Register a new agent (raises `ValueError` if name exists or limit reached) |
+| `get(name)` | `Agent \| None` | Get the `Agent` instance by name |
+| `get_config(name)` | `SubAgentConfig \| None` | Get the configuration by name |
+| `get_compiled(name)` | `CompiledSubAgent \| None` | Get the compiled wrapper by name |
+| `remove(name)` | `bool` | Remove an agent, returns `True` if found |
+| `list_agents()` | `list[str]` | Get all registered agent names |
+| `list_configs()` | `list[SubAgentConfig]` | Get all configurations |
+| `list_compiled()` | `list[CompiledSubAgent]` | Get all compiled agents |
+| `exists(name)` | `bool` | Check if an agent is registered |
+| `count()` | `int` | Number of registered agents |
+| `clear()` | `None` | Remove all agents |
+| `get_summary()` | `str` | Formatted summary of all agents |
+
+### Integration with pydantic-deep
+
+When using subagents with [`pydantic-deep`](https://github.com/vstorm-co/pydantic-deep), pass the registry to both the subagent toolset and the agent factory toolset so they share state:
+
+```python
+from pydantic_ai import Agent
+from subagents_pydantic_ai import (
+    create_subagent_toolset,
+    create_agent_factory_toolset,
+    DynamicAgentRegistry,
+    SubAgentConfig,
+)
+
+# Shared registry
+registry = DynamicAgentRegistry(max_agents=5)
+
+# Pre-configured subagents
+base_subagents = [
+    SubAgentConfig(
+        name="researcher",
+        description="Researches topics",
+        instructions="You are a research assistant.",
+    ),
+]
+
+# The subagent toolset receives the registry so task() can find dynamic agents
+subagent_toolset = create_subagent_toolset(
+    subagents=base_subagents,
+    registry=registry,
+)
+
+# The factory toolset uses the same registry to register new agents
+factory_toolset = create_agent_factory_toolset(
+    registry=registry,
+    allowed_models=["openai:gpt-4.1", "openai:gpt-4o-mini"],
+    max_agents=5,
+)
+
+agent = Agent(
+    "openai:gpt-4.1",
+    deps_type=Deps,
+    toolsets=[subagent_toolset, factory_toolset],
+)
+```
+
+With this setup:
+
+- The parent can delegate to pre-configured subagents ("researcher") via `task()`
+- The parent can create new subagents at runtime via `create_agent()`
+- Newly created agents are immediately available to `task()` because both toolsets share the same `registry` instance
+- When the parent removes a dynamic agent, it is no longer discoverable by `task()`
 
 ## Creating Agents at Runtime
 
