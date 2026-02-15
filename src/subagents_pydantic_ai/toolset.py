@@ -260,12 +260,16 @@ def create_subagent_toolset(
         # Validate subagent_type — check static compiled dict first, then dynamic registry
         if subagent_type in compiled:
             subagent = compiled[subagent_type]
-        elif registry is not None and hasattr(registry, 'get_compiled') and registry.get_compiled(subagent_type):
+        elif (
+            registry is not None
+            and hasattr(registry, "get_compiled")
+            and registry.get_compiled(subagent_type)
+        ):
             subagent = registry.get_compiled(subagent_type)
         else:
             # Build available list from both sources
             available_names = list(compiled.keys())
-            if registry is not None and hasattr(registry, 'list_agents'):
+            if registry is not None and hasattr(registry, "list_agents"):
                 available_names.extend(registry.list_agents())
             available = ", ".join(available_names)
             return f"Error: Unknown subagent '{subagent_type}'. Available: {available}"
