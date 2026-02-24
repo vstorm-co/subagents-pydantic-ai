@@ -229,8 +229,7 @@ def create_subagent_toolset(
     # Build dynamic task description with available subagents
     subagent_list = "\n".join(f"- {name}: {c.description}" for name, c in compiled.items())
     task_description = (
-        TASK_TOOL_DESCRIPTION.rstrip()
-        + f"\n\nAvailable subagent types:\n{subagent_list}"
+        TASK_TOOL_DESCRIPTION.rstrip() + f"\n\nAvailable subagent types:\n{subagent_list}"
     )
 
     toolset: FunctionToolset[Any] = FunctionToolset(id=id or "subagents")
