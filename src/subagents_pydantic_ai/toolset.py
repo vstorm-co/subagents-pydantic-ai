@@ -17,8 +17,15 @@ from pydantic_ai.toolsets import FunctionToolset
 
 from subagents_pydantic_ai.message_bus import InMemoryMessageBus, TaskManager
 from subagents_pydantic_ai.prompts import (
+    ANSWER_SUBAGENT_DESCRIPTION,
+    CHECK_TASK_DESCRIPTION,
     DEFAULT_GENERAL_PURPOSE_DESCRIPTION,
+    HARD_CANCEL_TASK_DESCRIPTION,
+    LIST_ACTIVE_TASKS_DESCRIPTION,
+    SOFT_CANCEL_TASK_DESCRIPTION,
     SUBAGENT_SYSTEM_PROMPT,
+    TASK_TOOL_DESCRIPTION,
+    WAIT_TASKS_DESCRIPTION,
     get_task_instructions_prompt,
 )
 from subagents_pydantic_ai.protocols import SubAgentDepsProtocol
@@ -111,38 +118,38 @@ def _create_ask_parent_toolset() -> FunctionToolset[Any]:
         Returns:
             The parent's answer.
         """
-        # This tool is a placeholder - actual implementation depends on
-        # whether we're in sync or async mode
-        # In sync mode: will be replaced with direct callback
-        # In async mode: will use message bus
+        # Try _subagent_state first (async mode with message bus)
         state = getattr(ctx, "_subagent_state", None)
-        if state is None:
-            return "Error: Cannot ask parent - no communication channel available"
+        if state is not None:
+            ask_callback = state.get("ask_callback")
+            if ask_callback:
+                result: str = await ask_callback(question)
+                return result
 
-        ask_callback = state.get("ask_callback")
-        if ask_callback:
-            result: str = await ask_callback(question)
-            return result
+            message_bus = state.get("message_bus")
+            task_id = state.get("task_id")
+            parent_id = state.get("parent_id")
+            agent_id = state.get("agent_id")
 
-        message_bus = state.get("message_bus")
-        task_id = state.get("task_id")
-        parent_id = state.get("parent_id")
-        agent_id = state.get("agent_id")
+            if message_bus and task_id and parent_id:
+                try:
+                    response = await message_bus.ask(
+                        sender=agent_id,
+                        receiver=parent_id,
+                        question=question,
+                        task_id=task_id,
+                        timeout=300.0,  # 5 minute timeout for async questions
+                    )
+                    return str(response.payload)
+                except asyncio.TimeoutError:
+                    return "Error: Parent did not respond in time"
+                except KeyError:
+                    return "Error: Parent is not available"
 
-        if message_bus and task_id and parent_id:
-            try:
-                response = await message_bus.ask(
-                    sender=agent_id,
-                    receiver=parent_id,
-                    question=question,
-                    task_id=task_id,
-                    timeout=300.0,  # 5 minute timeout for async questions
-                )
-                return str(response.payload)
-            except asyncio.TimeoutError:
-                return "Error: Parent did not respond in time"
-            except KeyError:
-                return "Error: Parent is not available"
+        # Fallback: use deps.ask_user callback (sync mode / plan toolset)
+        ask_user = getattr(ctx.deps, "ask_user", None)
+        if ask_user:
+            return await ask_user(question, [])
 
         return "Error: Cannot ask parent - no communication channel configured"
 
@@ -219,12 +226,16 @@ def create_subagent_toolset(
     message_bus = InMemoryMessageBus()
     task_manager = TaskManager(message_bus=message_bus)
 
-    # Build available subagents description for tool docstring
+    # Build dynamic task description with available subagents
     subagent_list = "\n".join(f"- {name}: {c.description}" for name, c in compiled.items())
+    task_description = (
+        TASK_TOOL_DESCRIPTION.rstrip()
+        + f"\n\nAvailable subagent types:\n{subagent_list}"
+    )
 
     toolset: FunctionToolset[Any] = FunctionToolset(id=id or "subagents")
 
-    @toolset.tool
+    @toolset.tool(description=task_description)
     async def task(
         ctx: RunContext[SubAgentDepsProtocol],
         description: str,
@@ -235,13 +246,7 @@ def create_subagent_toolset(
         requires_user_context: bool = False,
         may_need_clarification: bool = False,
     ) -> str:
-        f"""Delegate a task to a specialized subagent.
-
-        Choose the appropriate subagent_type based on the task requirements.
-        The task will be executed according to the specified mode.
-
-        Available subagents:
-        {subagent_list}
+        """Delegate a task to a specialized subagent.
 
         Args:
             ctx: The run context with dependencies.
@@ -252,10 +257,6 @@ def create_subagent_toolset(
             complexity: Override complexity estimate ("simple", "moderate", "complex").
             requires_user_context: Whether task needs ongoing user interaction.
             may_need_clarification: Whether task might need clarifying questions.
-
-        Returns:
-            In sync mode: The subagent's response.
-            In async mode: Task handle information with task_id.
         """
         # Validate subagent_type — check static compiled dict first, then dynamic registry
         if subagent_type in compiled:
@@ -324,21 +325,16 @@ def create_subagent_toolset(
                 priority=priority,
             )
 
-    @toolset.tool
+    @toolset.tool(description=CHECK_TASK_DESCRIPTION)
     async def check_task(
         ctx: RunContext[SubAgentDepsProtocol],
         task_id: str,
     ) -> str:
         """Check the status of a background task.
 
-        Use this to check if an async task has completed and get its result.
-
         Args:
             ctx: The run context.
             task_id: The task ID returned when the task was started.
-
-        Returns:
-            Status information and result if completed.
         """
         handle = task_manager.get_handle(task_id)
         if handle is None:
@@ -363,7 +359,7 @@ def create_subagent_toolset(
 
         return "\n".join(status_info)
 
-    @toolset.tool
+    @toolset.tool(description=ANSWER_SUBAGENT_DESCRIPTION)
     async def answer_subagent(
         ctx: RunContext[SubAgentDepsProtocol],
         task_id: str,
@@ -371,16 +367,10 @@ def create_subagent_toolset(
     ) -> str:
         """Answer a question from a subagent.
 
-        When a background task is waiting for an answer (status: WAITING_FOR_ANSWER),
-        use this tool to provide the requested information.
-
         Args:
             ctx: The run context.
             task_id: The task ID of the waiting subagent.
             answer: Your answer to the subagent's question.
-
-        Returns:
-            Confirmation that the answer was sent.
         """
         handle = task_manager.get_handle(task_id)
         if handle is None:
@@ -409,15 +399,11 @@ def create_subagent_toolset(
         except KeyError:
             return "Error: Could not send answer - subagent not available"
 
-    @toolset.tool
+    @toolset.tool(description=LIST_ACTIVE_TASKS_DESCRIPTION)
     async def list_active_tasks(
         ctx: RunContext[SubAgentDepsProtocol],
     ) -> str:
-        """List all active background tasks.
-
-        Returns:
-            List of active task IDs and their status.
-        """
+        """List all active background tasks."""
         active_ids = task_manager.list_active_tasks()
 
         if not active_ids:
@@ -432,49 +418,89 @@ def create_subagent_toolset(
 
         return "\n".join(lines)
 
-    @toolset.tool
+    @toolset.tool(description=WAIT_TASKS_DESCRIPTION)
+    async def wait_tasks(
+        ctx: RunContext[SubAgentDepsProtocol],
+        task_ids: list[str],
+        timeout: float = 300.0,
+    ) -> str:
+        """Wait for multiple background tasks to complete.
+
+        Args:
+            ctx: The run context.
+            task_ids: List of task IDs to wait for.
+            timeout: Maximum seconds to wait (default 300s / 5 minutes).
+        """
+        # Collect asyncio.Task objects for the requested task_ids
+        tasks_to_await: list[tuple[str, asyncio.Task[Any]]] = []
+        for tid in task_ids:
+            t = task_manager.tasks.get(tid)
+            if t is not None and not t.done():
+                tasks_to_await.append((tid, t))
+
+        # Wait for all with timeout
+        if tasks_to_await:
+            aws = [t for _, t in tasks_to_await]
+            try:
+                await asyncio.wait_for(
+                    asyncio.gather(*aws, return_exceptions=True),
+                    timeout=timeout,
+                )
+            except asyncio.TimeoutError:
+                pass  # Report what we have so far
+
+        # Collect results
+        lines: list[str] = []
+        for tid in task_ids:
+            handle = task_manager.get_handle(tid)
+            if handle is None:
+                lines.append(f"- {tid}: not found")
+                continue
+            status = handle.status
+            if status == "completed":
+                result_preview = (handle.result or "")[:2000]
+                lines.append(f"- {tid} ({handle.subagent_name}): COMPLETED\n{result_preview}")
+            elif status == "failed":
+                lines.append(f"- {tid} ({handle.subagent_name}): FAILED - {handle.error}")
+            else:
+                lines.append(f"- {tid} ({handle.subagent_name}): {status}")
+
+        return "Task results:\n" + "\n\n".join(lines)
+
+    @toolset.tool(description=SOFT_CANCEL_TASK_DESCRIPTION)
     async def soft_cancel_task(
         ctx: RunContext[SubAgentDepsProtocol],
         task_id: str,
     ) -> str:
         """Request cooperative cancellation of a background task.
 
-        The subagent will be notified and can clean up before stopping.
-        Use this for graceful cancellation.
-
         Args:
             ctx: The run context.
             task_id: The task to cancel.
-
-        Returns:
-            Confirmation or error message.
         """
         success = await task_manager.soft_cancel(task_id)
         if success:
             return f"Cancellation requested for task '{task_id}'"
         return f"Error: Task '{task_id}' not found"
 
-    @toolset.tool
+    @toolset.tool(description=HARD_CANCEL_TASK_DESCRIPTION)
     async def hard_cancel_task(
         ctx: RunContext[SubAgentDepsProtocol],
         task_id: str,
     ) -> str:
         """Immediately cancel a background task.
 
-        The task will be forcefully stopped. Use this only when soft
-        cancellation doesn't work or immediate stopping is required.
-
         Args:
             ctx: The run context.
             task_id: The task to cancel.
-
-        Returns:
-            Confirmation or error message.
         """
         success = await task_manager.hard_cancel(task_id)
         if success:
             return f"Task '{task_id}' has been cancelled"
         return f"Error: Task '{task_id}' not found"
+
+    # Expose task_manager for external monitoring (e.g., push notifications)
+    toolset.task_manager = task_manager  # type: ignore[attr-defined]
 
     return toolset
 
