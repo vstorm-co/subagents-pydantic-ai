@@ -156,7 +156,7 @@ def _create_ask_parent_toolset() -> FunctionToolset[Any]:
     return toolset
 
 
-def create_subagent_toolset(
+def create_subagent_toolset(  # noqa: C901
     subagents: list[SubAgentConfig] | None = None,
     default_model: str = "openai:gpt-4.1",
     toolsets_factory: ToolsetFactory | None = None,
