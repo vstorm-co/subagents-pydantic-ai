@@ -47,7 +47,7 @@ class TestGetSubagentSystemPrompt:
         """Test with empty config list."""
         result = get_subagent_system_prompt([])
         assert "Available Subagents" in result
-        assert "delegate tasks" in result
+        assert "delegate work" in result
 
     def test_single_config(self):
         """Test with single subagent config."""
@@ -60,7 +60,7 @@ class TestGetSubagentSystemPrompt:
         ]
         result = get_subagent_system_prompt(configs)
 
-        assert "### researcher" in result
+        assert "**researcher**" in result
         assert "Researches topics thoroughly" in result
 
     def test_multiple_configs(self):
@@ -79,8 +79,8 @@ class TestGetSubagentSystemPrompt:
         ]
         result = get_subagent_system_prompt(configs)
 
-        assert "### researcher" in result
-        assert "### writer" in result
+        assert "**researcher**" in result
+        assert "**writer**" in result
         assert "Researches topics" in result
         assert "Writes content" in result
 
@@ -96,7 +96,7 @@ class TestGetSubagentSystemPrompt:
         ]
         result = get_subagent_system_prompt(configs)
 
-        assert "Cannot ask clarifying questions" in result
+        assert "cannot ask clarifying questions" in result
 
     def test_config_with_questions_allowed(self):
         """Test config with can_ask_questions=True (default)."""
@@ -111,10 +111,10 @@ class TestGetSubagentSystemPrompt:
         result = get_subagent_system_prompt(configs)
 
         # Should NOT have the "cannot ask" warning
-        assert "Cannot ask clarifying questions" not in result
+        assert "cannot ask clarifying questions" not in result
 
     def test_include_dual_mode_true(self):
-        """Test with dual mode prompt included."""
+        """Test with dual mode prompt included — dual mode moved to tool description."""
         configs = [
             SubAgentConfig(
                 name="worker",
@@ -124,8 +124,9 @@ class TestGetSubagentSystemPrompt:
         ]
         result = get_subagent_system_prompt(configs, include_dual_mode=True)
 
-        assert "Sync Mode" in result
-        assert "Async Mode" in result
+        # Dual mode explanation now lives in TASK_TOOL_DESCRIPTION, not system prompt
+        assert "**worker**" in result
+        assert "Does work" in result
 
     def test_include_dual_mode_false(self):
         """Test with dual mode prompt excluded."""

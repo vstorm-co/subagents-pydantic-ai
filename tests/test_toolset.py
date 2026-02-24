@@ -202,6 +202,22 @@ class TestCreateAskParentToolset:
         assert result == "Answer to: what is 2+2?"
 
     @pytest.mark.asyncio
+    async def test_ask_parent_with_deps_ask_user(self):
+        """Test ask_parent falls back to deps.ask_user callback."""
+        toolset = _create_ask_parent_toolset()
+        ask_parent_tool = toolset.tools["ask_parent"]
+
+        async def mock_ask_user(question: str, options: list[str]) -> str:
+            return f"User answered: {question}"
+
+        deps = MockDeps()
+        deps.ask_user = mock_ask_user  # type: ignore[attr-defined]
+        ctx = MockRunContext(deps=deps)
+
+        result = await ask_parent_tool.function(ctx, "what color?")
+        assert result == "User answered: what color?"
+
+    @pytest.mark.asyncio
     async def test_ask_parent_with_message_bus(self):
         """Test ask_parent with message bus."""
         from subagents_pydantic_ai import InMemoryMessageBus
@@ -1541,6 +1557,175 @@ class TestToolsetFunctionsCoverage:
             assert task_id in task_list
             assert "worker" in task_list
             assert "Active background tasks" in task_list
+
+    @pytest.mark.asyncio
+    async def test_wait_tasks_completed(self):
+        """Test wait_tasks returns results for completed tasks."""
+        config = SubAgentConfig(
+            name="worker",
+            description="Worker",
+            instructions="Work",
+        )
+
+        mock_agent = MagicMock()
+        mock_agent.run = AsyncMock(return_value=MockResult("Research findings here"))
+
+        mock_compiled = CompiledSubAgent(
+            name=config["name"],
+            description=config["description"],
+            config=config,
+            agent=mock_agent,
+        )
+
+        with patch(
+            "subagents_pydantic_ai.toolset._compile_subagent",
+            return_value=mock_compiled,
+        ):
+            toolset = create_subagent_toolset(
+                subagents=[config],
+                include_general_purpose=False,
+            )
+
+            task_tool = toolset.tools["task"]
+            wait_tool = toolset.tools["wait_tasks"]
+
+            ctx = MockRunContext(deps=MockDeps())
+
+            # Start two async tasks
+            r1 = await task_tool.function(ctx, "task one", "worker", "async")
+            tid1 = r1.split("Task ID: ")[1].split("\n")[0]
+            r2 = await task_tool.function(ctx, "task two", "worker", "async")
+            tid2 = r2.split("Task ID: ")[1].split("\n")[0]
+
+            # Wait for both
+            result = await wait_tool.function(ctx, [tid1, tid2], 5.0)
+            assert "COMPLETED" in result
+            assert "Research findings here" in result
+
+    @pytest.mark.asyncio
+    async def test_wait_tasks_with_failure(self):
+        """Test wait_tasks handles failed tasks."""
+        config = SubAgentConfig(
+            name="worker",
+            description="Worker",
+            instructions="Work",
+        )
+
+        mock_agent = MagicMock()
+        mock_agent.run = AsyncMock(side_effect=Exception("Search API down"))
+
+        mock_compiled = CompiledSubAgent(
+            name=config["name"],
+            description=config["description"],
+            config=config,
+            agent=mock_agent,
+        )
+
+        with patch(
+            "subagents_pydantic_ai.toolset._compile_subagent",
+            return_value=mock_compiled,
+        ):
+            toolset = create_subagent_toolset(
+                subagents=[config],
+                include_general_purpose=False,
+            )
+
+            task_tool = toolset.tools["task"]
+            wait_tool = toolset.tools["wait_tasks"]
+
+            ctx = MockRunContext(deps=MockDeps())
+
+            r1 = await task_tool.function(ctx, "failing task", "worker", "async")
+            tid1 = r1.split("Task ID: ")[1].split("\n")[0]
+
+            await asyncio.sleep(0.1)
+
+            result = await wait_tool.function(ctx, [tid1], 5.0)
+            assert "FAILED" in result
+            assert "Search API down" in result
+
+    @pytest.mark.asyncio
+    async def test_wait_tasks_not_found(self):
+        """Test wait_tasks handles unknown task IDs."""
+        config = SubAgentConfig(
+            name="worker",
+            description="Worker",
+            instructions="Work",
+        )
+
+        mock_compiled = CompiledSubAgent(
+            name=config["name"],
+            description=config["description"],
+            config=config,
+            agent=MagicMock(),
+        )
+
+        with patch(
+            "subagents_pydantic_ai.toolset._compile_subagent",
+            return_value=mock_compiled,
+        ):
+            toolset = create_subagent_toolset(
+                subagents=[config],
+                include_general_purpose=False,
+            )
+
+            wait_tool = toolset.tools["wait_tasks"]
+            ctx = MockRunContext(deps=MockDeps())
+
+            result = await wait_tool.function(ctx, ["nonexistent-id"], 5.0)
+            assert "not found" in result
+
+    @pytest.mark.asyncio
+    async def test_wait_tasks_timeout(self):
+        """Test wait_tasks handles timeout for long-running tasks."""
+        config = SubAgentConfig(
+            name="worker",
+            description="Worker",
+            instructions="Work",
+        )
+
+        mock_compiled = CompiledSubAgent(
+            name=config["name"],
+            description=config["description"],
+            config=config,
+            agent=MagicMock(),
+        )
+
+        with patch(
+            "subagents_pydantic_ai.toolset._compile_subagent",
+            return_value=mock_compiled,
+        ):
+            toolset = create_subagent_toolset(
+                subagents=[config],
+                include_general_purpose=False,
+            )
+
+            wait_tool = toolset.tools["wait_tasks"]
+            ctx = MockRunContext(deps=MockDeps())
+
+            # Manually inject a long-running task into the task_manager
+            from subagents_pydantic_ai.types import TaskHandle
+
+            tm = toolset.task_manager  # type: ignore[attr-defined]
+
+            async def slow_coro():
+                await asyncio.sleep(100)
+                return "done"
+
+            handle = TaskHandle(
+                task_id="slow-1",
+                subagent_name="worker",
+                description="slow task",
+                status="running",
+            )
+            tm.create_task("slow-1", slow_coro(), handle)
+
+            # Wait with very short timeout — should hit TimeoutError branch
+            result = await wait_tool.function(ctx, ["slow-1"], 0.05)
+            assert "Task results:" in result
+            assert "slow-1" in result
+            # Task is still running, so status should be reported
+            assert "running" in result
 
     @pytest.mark.asyncio
     async def test_soft_cancel_task_success(self):

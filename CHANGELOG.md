@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.6] - 2026-02-24
+
+### Changed
+
+- **Expanded `TASK_TOOL_DESCRIPTION`** — From 8 lines to ~40 lines with "When to use" / "When NOT to use" sections, usage notes, and execution mode explanation. Follows the Claude Code / deepagents pattern of putting detailed guidance in tool descriptions rather than system prompt.
+- **Added description constants for all secondary tools** — `CHECK_TASK_DESCRIPTION`, `ANSWER_SUBAGENT_DESCRIPTION`, `LIST_ACTIVE_TASKS_DESCRIPTION`, `WAIT_TASKS_DESCRIPTION`, `SOFT_CANCEL_TASK_DESCRIPTION`, `HARD_CANCEL_TASK_DESCRIPTION`. All wired via `@toolset.tool(description=CONSTANT)` and exported from the package.
+- **Slimmed `get_subagent_system_prompt()`** — Changed from multi-line format with `DUAL_MODE_SYSTEM_PROMPT` injection to a compact `- **name**: description` listing. Dual-mode explanation moved into `TASK_TOOL_DESCRIPTION`.
+- **Dynamic `task` tool description** — The task tool now builds its description by appending the available subagent list to `TASK_TOOL_DESCRIPTION` at toolset creation time, instead of using an f-string docstring.
+
 ## [0.0.5] - 2025-02-15
 
 ### Added

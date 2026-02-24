@@ -50,17 +50,80 @@ DEFAULT_GENERAL_PURPOSE_DESCRIPTION = """A general-purpose agent for a wide vari
 Use this when no specialized subagent matches the task requirements.
 Capable of research, analysis, writing, and problem-solving."""
 
-TASK_TOOL_DESCRIPTION = """Delegate a task to a specialized subagent.
+TASK_TOOL_DESCRIPTION = """\
+Delegate a task to a specialized subagent. The subagent runs independently \
+with its own context and tools, and returns a result when done.
 
-Choose the appropriate subagent_type based on the task requirements.
-The task will be executed according to the specified mode:
-- "sync": Wait for completion (blocking) - default
-- "async": Run in background (returns task handle)
+## When to use
+- Complex multi-step tasks that can run independently from your main work
+- Research or exploration tasks (e.g., "find all usages of function X", \
+"understand how module Y works") — delegate so you can continue other work
+- Multiple independent subtasks that can run in parallel — launch several \
+subagents simultaneously for maximum efficiency
+- Tasks that require deep focus on a single area while you handle the big picture
+
+## When NOT to use
+- Trivial tasks you can do faster yourself (single file read, simple grep)
+- Tasks that require your full conversation context — subagents don't share \
+your message history
+- Tasks that need back-and-forth with the user — subagents work autonomously
+
+## Usage notes
+- **Be specific**: Subagents don't share your context. Include all necessary \
+details in the description: file paths, function names, expected behavior, \
+constraints. The more specific, the better the result.
+- **Launch in parallel**: When you have multiple independent tasks, call \
+`task()` multiple times in a single response. They run concurrently.
+- **Synthesize results**: When subagents return, combine and analyze their \
+results before presenting to the user. Don't just relay raw output.
+- **Choose the right subagent**: Match the subagent_type to the task. \
+Use "general-purpose" when no specialized subagent fits.
+
+## Execution modes
+- **"sync"** (default): Blocks until the subagent completes. Use for quick \
+tasks or when you need the result immediately.
+- **"async"**: Returns a task handle immediately. Use for long-running tasks \
+where you can continue other work. Check results with `check_task()` or \
+wait with `wait_tasks()`.
+- **"auto"**: Automatically picks sync or async based on task complexity.
 
 Returns:
-- In sync mode: The subagent's response as a string
-- In async mode: A task handle with task_id for status checking
+- In sync mode: The subagent's response as a string.
+- In async mode: A task handle with task_id for status checking.
 """
+
+CHECK_TASK_DESCRIPTION = """\
+Check the status of a background (async) task and get its result if completed.
+
+Use this after launching async tasks to see if they're done. Returns the \
+task status (running, completed, failed, waiting_for_answer) and the result \
+if available."""
+
+ANSWER_SUBAGENT_DESCRIPTION = """\
+Answer a question from a background subagent that is waiting for clarification.
+
+When a task has status WAITING_FOR_ANSWER, the subagent needs information \
+from you before it can continue. Provide a clear, specific answer."""
+
+LIST_ACTIVE_TASKS_DESCRIPTION = """\
+List all currently active background tasks with their status.
+
+Use this to see what async tasks are running and their current state."""
+
+WAIT_TASKS_DESCRIPTION = """\
+Wait for multiple background tasks to complete before continuing.
+
+Blocks until ALL specified tasks are done (completed, failed, or cancelled), \
+or until the timeout is reached. Use after dispatching multiple async tasks \
+when you need all results before proceeding."""
+
+SOFT_CANCEL_TASK_DESCRIPTION = """\
+Request cooperative cancellation of a background task. The subagent will be \
+notified and can clean up before stopping. Use this for graceful cancellation."""
+
+HARD_CANCEL_TASK_DESCRIPTION = """\
+Immediately cancel a background task. The task will be forcefully stopped. \
+Use only when soft cancellation doesn't work or immediate stopping is required."""
 
 
 def get_subagent_system_prompt(
@@ -89,22 +152,17 @@ def get_subagent_system_prompt(
         ```
     """
     lines = ["## Available Subagents", ""]
-    lines.append("You can delegate tasks to the following specialized subagents:")
+    lines.append("Use the `task` tool to delegate work to these subagents:")
     lines.append("")
 
     for config in configs:
         name = config["name"]
         description = config["description"]
-        lines.append(f"### {name}")
-        lines.append(description)
+        lines.append(f"- **{name}**: {description}")
 
         # Add hint if agent cannot ask questions
         if config.get("can_ask_questions") is False:
-            lines.append("*Cannot ask clarifying questions*")
-        lines.append("")
-
-    if include_dual_mode:
-        lines.append(DUAL_MODE_SYSTEM_PROMPT)
+            lines[-1] += " *(cannot ask clarifying questions)*"
 
     return "\n".join(lines)
 
