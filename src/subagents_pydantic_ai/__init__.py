@@ -43,19 +43,16 @@ from subagents_pydantic_ai.message_bus import (
     create_message_bus as create_message_bus,
 )
 from subagents_pydantic_ai.prompts import (
-    DEFAULT_GENERAL_PURPOSE_DESCRIPTION as DEFAULT_GENERAL_PURPOSE_DESCRIPTION,
-)
-from subagents_pydantic_ai.prompts import (
-    DUAL_MODE_SYSTEM_PROMPT as DUAL_MODE_SYSTEM_PROMPT,
-)
-from subagents_pydantic_ai.prompts import (
-    SUBAGENT_SYSTEM_PROMPT as SUBAGENT_SYSTEM_PROMPT,
-)
-from subagents_pydantic_ai.prompts import (
     ANSWER_SUBAGENT_DESCRIPTION as ANSWER_SUBAGENT_DESCRIPTION,
 )
 from subagents_pydantic_ai.prompts import (
     CHECK_TASK_DESCRIPTION as CHECK_TASK_DESCRIPTION,
+)
+from subagents_pydantic_ai.prompts import (
+    DEFAULT_GENERAL_PURPOSE_DESCRIPTION as DEFAULT_GENERAL_PURPOSE_DESCRIPTION,
+)
+from subagents_pydantic_ai.prompts import (
+    DUAL_MODE_SYSTEM_PROMPT as DUAL_MODE_SYSTEM_PROMPT,
 )
 from subagents_pydantic_ai.prompts import (
     HARD_CANCEL_TASK_DESCRIPTION as HARD_CANCEL_TASK_DESCRIPTION,
@@ -65,6 +62,9 @@ from subagents_pydantic_ai.prompts import (
 )
 from subagents_pydantic_ai.prompts import (
     SOFT_CANCEL_TASK_DESCRIPTION as SOFT_CANCEL_TASK_DESCRIPTION,
+)
+from subagents_pydantic_ai.prompts import (
+    SUBAGENT_SYSTEM_PROMPT as SUBAGENT_SYSTEM_PROMPT,
 )
 from subagents_pydantic_ai.prompts import (
     TASK_TOOL_DESCRIPTION as TASK_TOOL_DESCRIPTION,

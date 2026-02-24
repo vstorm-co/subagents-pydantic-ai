@@ -149,7 +149,7 @@ def _create_ask_parent_toolset() -> FunctionToolset[Any]:
         # Fallback: use deps.ask_user callback (sync mode / plan toolset)
         ask_user = getattr(ctx.deps, "ask_user", None)
         if ask_user:
-            return await ask_user(question, [])
+            return str(await ask_user(question, []))
 
         return "Error: Cannot ask parent - no communication channel configured"
 
