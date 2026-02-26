@@ -80,6 +80,23 @@ agent = Agent(
 )
 ```
 
+## With Custom Tool Descriptions
+
+Override default tool descriptions for better LLM behavior:
+
+```python
+toolset = create_subagent_toolset(
+    subagents=subagents,
+    descriptions={
+        "task": "Assign a task to a specialized subagent",
+        "check_task": "Check the status of a delegated task",
+        "list_active_tasks": "Show all currently running background tasks",
+    },
+)
+```
+
+Available tool names: `task`, `check_task`, `answer_subagent`, `list_active_tasks`, `wait_tasks`, `soft_cancel_task`, `hard_cancel_task`.
+
 ## With Toolsets Factory
 
 ```python

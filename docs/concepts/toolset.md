@@ -27,6 +27,7 @@ toolset = create_subagent_toolset(subagents=subagents)
 | `toolsets_factory` | `Callable` | `None` | Factory to create toolsets for subagents |
 | `max_nesting_depth` | `int` | `2` | Maximum subagent nesting depth |
 | `general_purpose_config` | `SubAgentConfig \| None` | Auto | Config for the "general" subagent |
+| `descriptions` | `dict[str, str] \| None` | `None` | Override default tool descriptions by tool name |
 
 ## Adding to an Agent
 
@@ -179,6 +180,33 @@ toolset = create_subagent_toolset(
     general_purpose_config=None,
 )
 ```
+
+## Custom Tool Descriptions
+
+Override the default tool descriptions to better guide LLM behavior. This is useful when you want descriptions that are more specific to your use case:
+
+```python
+toolset = create_subagent_toolset(
+    subagents=subagents,
+    descriptions={
+        "task": "Assign a task to a specialized subagent",
+        "check_task": "Check the status of a delegated task",
+        "list_active_tasks": "Show all currently running background tasks",
+    },
+)
+```
+
+Only the tool names you include in the dictionary are overridden; the rest keep their built-in defaults. Available tool names:
+
+| Tool Name | Description |
+|-----------|-------------|
+| `task` | Delegate a task to a subagent |
+| `check_task` | Check status of a background task |
+| `answer_subagent` | Answer a question from a blocked subagent |
+| `list_active_tasks` | List all running background tasks |
+| `wait_tasks` | Wait for background tasks to complete |
+| `soft_cancel_task` | Request cooperative cancellation |
+| `hard_cancel_task` | Immediately cancel a task |
 
 ## System Prompt
 

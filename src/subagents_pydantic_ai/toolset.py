@@ -164,6 +164,7 @@ def create_subagent_toolset(  # noqa: C901
     max_nesting_depth: int = 0,
     id: str | None = None,
     registry: Any | None = None,
+    descriptions: dict[str, str] | None = None,
 ) -> FunctionToolset[Any]:
     """Create a toolset for delegating tasks to subagents.
 
@@ -187,6 +188,10 @@ def create_subagent_toolset(  # noqa: C901
         max_nesting_depth: Maximum depth for nested subagents. 0 means
             subagents cannot spawn their own subagents.
         id: Optional toolset ID. Defaults to "subagents".
+        descriptions: Optional mapping of tool name to custom description.
+            Keys are tool names (task, check_task, answer_subagent,
+            list_active_tasks, wait_tasks, soft_cancel_task, hard_cancel_task).
+            When provided, the custom description replaces the built-in default.
 
     Returns:
         FunctionToolset configured with subagent management tools.
@@ -212,6 +217,8 @@ def create_subagent_toolset(  # noqa: C901
         agent = Agent("openai:gpt-4.1", toolsets=[toolset])
         ```
     """
+    _descs = descriptions or {}
+
     # Build subagent configs
     configs: list[SubAgentConfig] = list(subagents) if subagents else []
     if include_general_purpose:
@@ -228,8 +235,9 @@ def create_subagent_toolset(  # noqa: C901
 
     # Build dynamic task description with available subagents
     subagent_list = "\n".join(f"- {name}: {c.description}" for name, c in compiled.items())
-    task_description = (
-        TASK_TOOL_DESCRIPTION.rstrip() + f"\n\nAvailable subagent types:\n{subagent_list}"
+    task_description = _descs.get(
+        "task",
+        TASK_TOOL_DESCRIPTION.rstrip() + f"\n\nAvailable subagent types:\n{subagent_list}",
     )
 
     toolset: FunctionToolset[Any] = FunctionToolset(id=id or "subagents")
@@ -324,7 +332,7 @@ def create_subagent_toolset(  # noqa: C901
                 priority=priority,
             )
 
-    @toolset.tool(description=CHECK_TASK_DESCRIPTION)
+    @toolset.tool(description=_descs.get("check_task", CHECK_TASK_DESCRIPTION))
     async def check_task(
         ctx: RunContext[SubAgentDepsProtocol],
         task_id: str,
@@ -358,7 +366,7 @@ def create_subagent_toolset(  # noqa: C901
 
         return "\n".join(status_info)
 
-    @toolset.tool(description=ANSWER_SUBAGENT_DESCRIPTION)
+    @toolset.tool(description=_descs.get("answer_subagent", ANSWER_SUBAGENT_DESCRIPTION))
     async def answer_subagent(
         ctx: RunContext[SubAgentDepsProtocol],
         task_id: str,
@@ -398,7 +406,7 @@ def create_subagent_toolset(  # noqa: C901
         except KeyError:
             return "Error: Could not send answer - subagent not available"
 
-    @toolset.tool(description=LIST_ACTIVE_TASKS_DESCRIPTION)
+    @toolset.tool(description=_descs.get("list_active_tasks", LIST_ACTIVE_TASKS_DESCRIPTION))
     async def list_active_tasks(
         ctx: RunContext[SubAgentDepsProtocol],
     ) -> str:
@@ -417,7 +425,7 @@ def create_subagent_toolset(  # noqa: C901
 
         return "\n".join(lines)
 
-    @toolset.tool(description=WAIT_TASKS_DESCRIPTION)
+    @toolset.tool(description=_descs.get("wait_tasks", WAIT_TASKS_DESCRIPTION))
     async def wait_tasks(
         ctx: RunContext[SubAgentDepsProtocol],
         task_ids: list[str],
@@ -466,7 +474,7 @@ def create_subagent_toolset(  # noqa: C901
 
         return "Task results:\n" + "\n\n".join(lines)
 
-    @toolset.tool(description=SOFT_CANCEL_TASK_DESCRIPTION)
+    @toolset.tool(description=_descs.get("soft_cancel_task", SOFT_CANCEL_TASK_DESCRIPTION))
     async def soft_cancel_task(
         ctx: RunContext[SubAgentDepsProtocol],
         task_id: str,
@@ -482,7 +490,7 @@ def create_subagent_toolset(  # noqa: C901
             return f"Cancellation requested for task '{task_id}'"
         return f"Error: Task '{task_id}' not found"
 
-    @toolset.tool(description=HARD_CANCEL_TASK_DESCRIPTION)
+    @toolset.tool(description=_descs.get("hard_cancel_task", HARD_CANCEL_TASK_DESCRIPTION))
     async def hard_cancel_task(
         ctx: RunContext[SubAgentDepsProtocol],
         task_id: str,

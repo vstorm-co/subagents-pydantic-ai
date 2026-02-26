@@ -79,8 +79,14 @@ subagents = [
     ),
 ]
 
-# Create toolset and agent
-toolset = create_subagent_toolset(subagents=subagents)
+# Create toolset and agent (with optional custom tool descriptions)
+toolset = create_subagent_toolset(
+    subagents=subagents,
+    descriptions={
+        "task": "Assign a task to a specialized subagent",
+        "check_task": "Check the status of a delegated task",
+    },
+)
 agent = Agent(
     "openai:gpt-4o",
     deps_type=Deps,
