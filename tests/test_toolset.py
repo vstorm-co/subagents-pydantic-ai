@@ -110,6 +110,47 @@ class TestCompileSubagent:
             call_kwargs = mock_agent_class.call_args
             assert call_kwargs[0][0] == "openai:gpt-3.5-turbo"
 
+    def test_compile_with_model_object(self):
+        """Test compiling subagent with a Model object instead of string."""
+        from pydantic_ai.models.test import TestModel
+
+        from subagents_pydantic_ai.toolset import _compile_subagent
+
+        config = SubAgentConfig(
+            name="test-agent",
+            description="Test agent",
+            instructions="Test instructions",
+        )
+
+        test_model = TestModel()
+        compiled = _compile_subagent(config, test_model)
+
+        assert compiled.name == "test-agent"
+        assert compiled.agent is not None
+
+    def test_compile_with_model_object_in_config(self):
+        """Test compiling subagent with a Model object in SubAgentConfig."""
+        from pydantic_ai.models.test import TestModel
+
+        from subagents_pydantic_ai.toolset import _compile_subagent
+
+        test_model = TestModel()
+        config = SubAgentConfig(
+            name="test-agent",
+            description="Test agent",
+            instructions="Test instructions",
+            model=test_model,
+        )
+
+        with patch("subagents_pydantic_ai.toolset.Agent") as mock_agent_class:
+            mock_agent_class.return_value = MagicMock()
+            compiled = _compile_subagent(config, "openai:gpt-4")
+
+            assert compiled.agent is not None
+            # Should use config's Model object, not default string
+            call_args = mock_agent_class.call_args
+            assert call_args[0][0] is test_model
+
     def test_compile_with_custom_toolsets(self):
         """Test compiling subagent with custom toolsets."""
         from pydantic_ai.toolsets import FunctionToolset

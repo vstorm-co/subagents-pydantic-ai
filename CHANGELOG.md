@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.8] - 2026-03-06
+
+### Fixed
+
+- **Accept `Model` objects in subagent configuration** — `create_subagent_toolset()`, `_compile_subagent()`, `create_agent_factory_toolset()`, and `SubAgentConfig.model` now accept `str | Model` instead of only `str`. Previously, passing a `Model` object (e.g. `TestModel()`, `AnthropicModel()`) as `default_model` would be silently discarded by the caller. ([#15](https://github.com/vstorm-co/subagents-pydantic-ai/pull/15), by [@ret2libc](https://github.com/ret2libc))
+
 ## [0.0.7] - 2026-02-26
 
 ### Added
