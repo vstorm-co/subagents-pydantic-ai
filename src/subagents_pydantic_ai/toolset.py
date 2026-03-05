@@ -13,6 +13,7 @@ from datetime import datetime
 from typing import Any, Literal
 
 from pydantic_ai import Agent, RunContext
+from pydantic_ai.models import Model
 from pydantic_ai.toolsets import FunctionToolset
 
 from subagents_pydantic_ai.message_bus import InMemoryMessageBus, TaskManager
@@ -56,7 +57,7 @@ def _create_general_purpose_config() -> SubAgentConfig:
 
 def _compile_subagent(
     config: SubAgentConfig,
-    default_model: str,
+    default_model: str | Model,
 ) -> CompiledSubAgent:
     """Compile a subagent configuration into a ready-to-use agent.
 
@@ -158,7 +159,7 @@ def _create_ask_parent_toolset() -> FunctionToolset[Any]:
 
 def create_subagent_toolset(  # noqa: C901
     subagents: list[SubAgentConfig] | None = None,
-    default_model: str = "openai:gpt-4.1",
+    default_model: str | Model = "openai:gpt-4.1",
     toolsets_factory: ToolsetFactory | None = None,
     include_general_purpose: bool = True,
     max_nesting_depth: int = 0,
