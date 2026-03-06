@@ -236,8 +236,9 @@ class TestCreateAskParentToolset:
         async def mock_callback(q: str) -> str:
             return f"Answer to: {q}"
 
-        ctx = MockRunContext(deps=MockDeps())
-        ctx._subagent_state = {"ask_callback": mock_callback}
+        deps = MockDeps()
+        deps._subagent_state = {"ask_callback": mock_callback}
+        ctx = MockRunContext(deps=deps)
 
         result = await ask_parent_tool.function(ctx, "what is 2+2?")
         assert result == "Answer to: what is 2+2?"
@@ -259,36 +260,42 @@ class TestCreateAskParentToolset:
         assert result == "User answered: what color?"
 
     @pytest.mark.asyncio
-    async def test_ask_parent_with_message_bus(self):
-        """Test ask_parent with message bus."""
-        from subagents_pydantic_ai import InMemoryMessageBus
+    async def test_ask_parent_with_task_manager(self):
+        """Test ask_parent with task_manager and answer future."""
+        import asyncio
+
+        from subagents_pydantic_ai.message_bus import InMemoryMessageBus, TaskManager
+        from subagents_pydantic_ai.types import TaskHandle, TaskStatus
 
         toolset = _create_ask_parent_toolset()
 
         ask_parent_tool = toolset.tools["ask_parent"]
 
         message_bus = InMemoryMessageBus()
-        message_bus.register_agent("parent")
-        message_bus.register_agent("subagent-123")
+        tm = TaskManager(message_bus=message_bus)
 
-        ctx = MockRunContext(deps=MockDeps())
-        ctx._subagent_state = {
-            "message_bus": message_bus,
+        # Create a handle to simulate a running task
+        handle = TaskHandle(
+            task_id="task-123",
+            subagent_name="test-agent",
+            description="test task",
+            status=TaskStatus.RUNNING,
+        )
+        tm.handles["task-123"] = handle
+
+        deps = MockDeps()
+        deps._subagent_state = {
+            "task_manager": tm,
             "task_id": "task-123",
-            "parent_id": "parent",
-            "agent_id": "subagent-123",
         }
+        ctx = MockRunContext(deps=deps)
 
-        # Setup answer in background
+        # Setup answer in background — resolve the future
         async def answer_question():
-            import asyncio
-
             await asyncio.sleep(0.05)
-            queue = message_bus._queues["parent"]
-            msg = await queue.get()
-            await message_bus.answer(msg, "the answer is 4")
-
-        import asyncio
+            future = tm.get_answer_future("task-123")
+            assert future is not None
+            future.set_result("the answer is 4")
 
         answer_task = asyncio.create_task(answer_question())
 
@@ -296,6 +303,9 @@ class TestCreateAskParentToolset:
         await answer_task
 
         assert result == "the answer is 4"
+        # Handle should be back to running after answer
+        assert handle.status == TaskStatus.RUNNING
+        assert handle.pending_question is None
 
 
 class TestCreateSubagentToolset:
@@ -1189,65 +1199,69 @@ class TestAskParentEdgeCases:
     @pytest.mark.asyncio
     async def test_ask_parent_timeout(self):
         """Test ask_parent handles timeout correctly."""
-        from subagents_pydantic_ai import InMemoryMessageBus
+        from subagents_pydantic_ai.message_bus import InMemoryMessageBus, TaskManager
+        from subagents_pydantic_ai.types import TaskHandle, TaskStatus
 
         toolset = _create_ask_parent_toolset()
         ask_parent_tool = toolset.tools["ask_parent"]
 
-        message_bus = InMemoryMessageBus()
-        message_bus.register_agent("parent")
-        message_bus.register_agent("subagent-123")
+        tm = TaskManager(message_bus=InMemoryMessageBus())
+        handle = TaskHandle(
+            task_id="task-123",
+            subagent_name="test-agent",
+            description="test task",
+            status=TaskStatus.RUNNING,
+        )
+        tm.handles["task-123"] = handle
 
-        ctx = MockRunContext(deps=MockDeps())
-        # Mock a very short timeout
-        ctx._subagent_state = {
-            "message_bus": message_bus,
+        deps = MockDeps()
+        deps._subagent_state = {
+            "task_manager": tm,
             "task_id": "task-123",
-            "parent_id": "parent",
-            "agent_id": "subagent-123",
         }
+        ctx = MockRunContext(deps=deps)
 
-        # Patch the timeout to be very short
-        with patch.object(message_bus, "ask", side_effect=asyncio.TimeoutError()):
+        # Patch wait_for to raise TimeoutError immediately
+        with patch("asyncio.wait_for", side_effect=asyncio.TimeoutError()):
             result = await ask_parent_tool.function(ctx, "what is 2+2?")
 
         assert "Error" in result
         assert "not respond in time" in result
 
     @pytest.mark.asyncio
-    async def test_ask_parent_parent_unavailable(self):
-        """Test ask_parent handles unavailable parent."""
-        from subagents_pydantic_ai import InMemoryMessageBus
-
+    async def test_ask_parent_no_task_manager_configured(self):
+        """Test ask_parent without task_manager returns proper error."""
         toolset = _create_ask_parent_toolset()
         ask_parent_tool = toolset.tools["ask_parent"]
 
-        message_bus = InMemoryMessageBus()
-        message_bus.register_agent("subagent-123")  # Don't register parent
-
-        ctx = MockRunContext(deps=MockDeps())
-        ctx._subagent_state = {
-            "message_bus": message_bus,
-            "task_id": "task-123",
-            "parent_id": "parent",
-            "agent_id": "subagent-123",
+        deps = MockDeps()
+        deps._subagent_state = {
+            "task_manager": None,
+            "task_id": None,
         }
+        ctx = MockRunContext(deps=deps)
 
         result = await ask_parent_tool.function(ctx, "question")
         assert "Error" in result
-        assert "not available" in result
+        assert "no communication channel" in result
 
     @pytest.mark.asyncio
-    async def test_ask_parent_no_message_bus_configured(self):
-        """Test ask_parent without message bus returns proper error."""
+    async def test_ask_parent_handle_not_found(self):
+        """Test ask_parent when task_manager has no handle for task_id."""
+        from subagents_pydantic_ai.message_bus import InMemoryMessageBus, TaskManager
+
         toolset = _create_ask_parent_toolset()
         ask_parent_tool = toolset.tools["ask_parent"]
 
-        ctx = MockRunContext(deps=MockDeps())
-        ctx._subagent_state = {
-            "message_bus": None,
-            "task_id": None,
+        tm = TaskManager(message_bus=InMemoryMessageBus())
+        # Don't add any handle — task_id "missing-task" won't be found
+
+        deps = MockDeps()
+        deps._subagent_state = {
+            "task_manager": tm,
+            "task_id": "missing-task",
         }
+        ctx = MockRunContext(deps=deps)
 
         result = await ask_parent_tool.function(ctx, "question")
         assert "Error" in result
@@ -2174,13 +2188,18 @@ class TestAnswerSubagentCoverage:
             answer_tool = toolset.tools["answer_subagent"]
             ctx = MockRunContext(deps=MockDeps())
 
+            # Set up an answer future (as ask_parent would)
+            loop = asyncio.get_running_loop()
+            future: asyncio.Future[str] = loop.create_future()
+            task_manager.set_answer_future("test-task-456", future)
+
             # Answer the waiting task
             result = await answer_tool.function(ctx, "test-task-456", "The answer is 42")
             assert "Answer sent" in result
 
-            # Verify handle was updated
-            assert handle.status == TaskStatus.RUNNING
-            assert handle.pending_question is None
+            # Verify future was resolved
+            assert future.done()
+            assert future.result() == "The answer is 42"
 
     @pytest.mark.asyncio
     async def test_answer_subagent_agent_not_registered(self):
@@ -2240,10 +2259,10 @@ class TestAnswerSubagentCoverage:
             answer_tool = toolset.tools["answer_subagent"]
             ctx = MockRunContext(deps=MockDeps())
 
-            # Try to answer - should fail because agent not registered
+            # Try to answer - should fail because no answer future is set
             result = await answer_tool.function(ctx, "test-task-789", "The answer is 42")
             assert "Error" in result
-            assert "not available" in result
+            assert "no longer waiting" in result
 
 
 class TestMessageBusBranchCoverage:

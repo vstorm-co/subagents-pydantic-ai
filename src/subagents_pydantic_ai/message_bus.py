@@ -314,6 +314,7 @@ class TaskManager:
     handles: dict[str, Any] = field(default_factory=dict)  # TaskHandle
     message_bus: InMemoryMessageBus = field(default_factory=InMemoryMessageBus)
     _cancel_events: dict[str, asyncio.Event] = field(default_factory=dict)
+    _answer_futures: dict[str, asyncio.Future[str]] = field(default_factory=dict)
 
     def create_task(
         self,
@@ -363,6 +364,34 @@ class TaskManager:
             The cancellation event if found, None otherwise.
         """
         return self._cancel_events.get(task_id)
+
+    def set_answer_future(self, task_id: str, future: asyncio.Future[str]) -> None:
+        """Set an answer future for a task waiting for parent response.
+
+        Args:
+            task_id: The task ID.
+            future: The future to resolve when the answer arrives.
+        """
+        self._answer_futures[task_id] = future
+
+    def get_answer_future(self, task_id: str) -> asyncio.Future[str] | None:
+        """Get the pending answer future for a task.
+
+        Args:
+            task_id: The task ID.
+
+        Returns:
+            The answer future if set, None otherwise.
+        """
+        return self._answer_futures.get(task_id)
+
+    def clear_answer_future(self, task_id: str) -> None:
+        """Remove the answer future for a task.
+
+        Args:
+            task_id: The task ID.
+        """
+        self._answer_futures.pop(task_id, None)
 
     async def soft_cancel(self, task_id: str) -> bool:
         """Request cooperative cancellation of a task.

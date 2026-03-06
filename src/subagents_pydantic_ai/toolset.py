@@ -31,10 +31,8 @@ from subagents_pydantic_ai.prompts import (
 )
 from subagents_pydantic_ai.protocols import SubAgentDepsProtocol
 from subagents_pydantic_ai.types import (
-    AgentMessage,
     CompiledSubAgent,
     ExecutionMode,
-    MessageType,
     SubAgentConfig,
     TaskCharacteristics,
     TaskHandle,
@@ -119,33 +117,39 @@ def _create_ask_parent_toolset() -> FunctionToolset[Any]:
         Returns:
             The parent's answer.
         """
-        # Try _subagent_state first (async mode with message bus)
-        state = getattr(ctx, "_subagent_state", None)
+        # Try _subagent_state on deps (async mode)
+        state = getattr(ctx.deps, "_subagent_state", None)
         if state is not None:
             ask_callback = state.get("ask_callback")
             if ask_callback:
                 result: str = await ask_callback(question)
                 return result
 
-            message_bus = state.get("message_bus")
-            task_id = state.get("task_id")
-            parent_id = state.get("parent_id")
-            agent_id = state.get("agent_id")
+            _task_manager = state.get("task_manager")
+            _task_id = state.get("task_id")
 
-            if message_bus and task_id and parent_id:
-                try:
-                    response = await message_bus.ask(
-                        sender=agent_id,
-                        receiver=parent_id,
-                        question=question,
-                        task_id=task_id,
-                        timeout=300.0,  # 5 minute timeout for async questions
-                    )
-                    return str(response.payload)
-                except asyncio.TimeoutError:
-                    return "Error: Parent did not respond in time"
-                except KeyError:
-                    return "Error: Parent is not available"
+            if _task_manager and _task_id:
+                handle = _task_manager.get_handle(_task_id)
+                if handle is not None:
+                    # Set question on handle so parent can see it via check_task
+                    handle.pending_question = question
+                    handle.status = TaskStatus.WAITING_FOR_ANSWER
+
+                    # Create a future and wait for answer_subagent to resolve it
+                    loop = asyncio.get_running_loop()
+                    answer_future: asyncio.Future[str] = loop.create_future()
+                    _task_manager.set_answer_future(_task_id, answer_future)
+
+                    try:
+                        answer = await asyncio.wait_for(answer_future, timeout=300.0)
+                        handle.status = TaskStatus.RUNNING
+                        handle.pending_question = None
+                        return answer
+                    except asyncio.TimeoutError:
+                        handle.status = TaskStatus.RUNNING
+                        handle.pending_question = None
+                        _task_manager.clear_answer_future(_task_id)
+                        return "Error: Parent did not respond in time"
 
         # Fallback: use deps.ask_user callback (sync mode / plan toolset)
         ask_user = getattr(ctx.deps, "ask_user", None)
@@ -387,25 +391,13 @@ def create_subagent_toolset(  # noqa: C901
         if handle.status != TaskStatus.WAITING_FOR_ANSWER:
             return f"Error: Task '{task_id}' is not waiting for an answer (status: {handle.status})"
 
-        # Find the pending question message and answer it
-        try:
-            # Create answer message
-            answer_msg = AgentMessage(
-                type=MessageType.ANSWER,
-                sender="parent",
-                receiver=handle.subagent_name,
-                payload=answer,
-                task_id=task_id,
-            )
-            await message_bus.send(answer_msg)
-
-            # Update handle status
-            handle.status = TaskStatus.RUNNING
-            handle.pending_question = None
-
+        # Resolve the answer future that ask_parent is waiting on
+        future = task_manager.get_answer_future(task_id)
+        if future is not None and not future.done():
+            future.set_result(answer)
             return f"Answer sent to task '{task_id}'"
-        except KeyError:
-            return "Error: Could not send answer - subagent not available"
+
+        return "Error: Could not send answer - subagent is no longer waiting"
 
     @toolset.tool(description=_descs.get("list_active_tasks", LIST_ACTIVE_TASKS_DESCRIPTION))
     async def list_active_tasks(
@@ -597,6 +589,12 @@ async def _run_async(
     except ValueError:
         pass  # Already registered
 
+    # Inject _subagent_state on deps so ask_parent can communicate with parent
+    deps._subagent_state = {
+        "task_manager": task_manager,
+        "task_id": task_id,
+    }
+
     async def run_task() -> None:
         """Execute the task and update handle."""
         can_ask = config.get("can_ask_questions", True)
@@ -625,6 +623,7 @@ async def _run_async(
         finally:
             handle.completed_at = datetime.now()
             message_bus.unregister_agent(agent_id)
+            task_manager.clear_answer_future(task_id)
             task_manager.cleanup_task(task_id)
 
     # Create the background task

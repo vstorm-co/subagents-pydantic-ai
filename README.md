@@ -10,6 +10,7 @@
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
   <a href="https://coveralls.io/github/vstorm-co/subagents-pydantic-ai?branch=main"><img src="https://coveralls.io/repos/github/vstorm-co/subagents-pydantic-ai/badge.svg?branch=main" alt="Coverage Status"></a>
   <a href="https://github.com/pydantic/pydantic-ai"><img src="https://img.shields.io/badge/Powered%20by-Pydantic%20AI-E92063?logo=pydantic&logoColor=white" alt="Pydantic AI"></a>
+  <a href="https://oss.vstorm.co/"><img src="https://img.shields.io/badge/OSS-vstorm.co-0066FF" alt="Vstorm OSS"></a>
 </p>
 
 <p align="center">
