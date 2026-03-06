@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **Accept `Model` objects in subagent configuration** — `create_subagent_toolset()`, `_compile_subagent()`, `create_agent_factory_toolset()`, and `SubAgentConfig.model` now accept `str | Model` instead of only `str`. Previously, passing a `Model` object (e.g. `TestModel()`, `AnthropicModel()`) as `default_model` would be silently discarded by the caller. ([#15](https://github.com/vstorm-co/subagents-pydantic-ai/pull/15), by [@ret2libc](https://github.com/ret2libc))
+- **`ask_parent` tool broken in async mode** — `ask_parent()` checked `ctx._subagent_state` but pydantic-ai never sets custom attributes on `RunContext`. State is now injected via `deps._subagent_state` in `_run_async()`. Additionally, `answer_subagent` used `message_bus.send()` instead of resolving the future that `ask_parent` awaits, so answers were never delivered. Replaced message bus Q&A with direct `asyncio.Future` coordination via `TaskManager`. ([#14](https://github.com/vstorm-co/subagents-pydantic-ai/issues/14))
 
 ## [0.0.7] - 2026-02-26
 
