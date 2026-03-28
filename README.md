@@ -52,56 +52,55 @@ uv add subagents-pydantic-ai
 
 ## Quick Start
 
+The recommended way to add subagent delegation is via the **Capabilities API**:
+
 ```python
-from dataclasses import dataclass, field
-from typing import Any
+from pydantic_ai import Agent
+from subagents_pydantic_ai import SubAgentCapability, SubAgentConfig
+
+agent = Agent(
+    "openai:gpt-4.1",
+    capabilities=[SubAgentCapability(
+        subagents=[
+            SubAgentConfig(
+                name="researcher",
+                description="Researches topics and gathers information",
+                instructions="You are a research assistant. Investigate thoroughly.",
+            ),
+            SubAgentConfig(
+                name="writer",
+                description="Writes content based on research",
+                instructions="You are a technical writer. Write clear, concise content.",
+            ),
+        ],
+    )],
+)
+
+result = await agent.run("Research Python async patterns and write a blog post about it")
+```
+
+`SubAgentCapability` automatically:
+- Registers all delegation tools (`task`, `check_task`, `answer_subagent`, `list_active_tasks`, etc.)
+- Injects dynamic system prompt listing available subagents
+- Includes a general-purpose subagent by default
+
+### Alternative: Toolset API
+
+For lower-level control:
+
+```python
 from pydantic_ai import Agent
 from subagents_pydantic_ai import create_subagent_toolset, SubAgentConfig
 
-# Dependencies must implement SubAgentDepsProtocol
-@dataclass
-class Deps:
-    subagents: dict[str, Any] = field(default_factory=dict)
-
-    def clone_for_subagent(self, max_depth: int = 0) -> "Deps":
-        return Deps(subagents={} if max_depth <= 0 else self.subagents.copy())
-
-# Define specialized subagents
-subagents = [
-    SubAgentConfig(
-        name="researcher",
-        description="Researches topics and gathers information",
-        instructions="You are a research assistant. Investigate thoroughly.",
-    ),
-    SubAgentConfig(
-        name="writer",
-        description="Writes content based on research",
-        instructions="You are a technical writer. Write clear, concise content.",
-    ),
-]
-
-# Create toolset and agent (with optional custom tool descriptions)
 toolset = create_subagent_toolset(
-    subagents=subagents,
-    descriptions={
-        "task": "Assign a task to a specialized subagent",
-        "check_task": "Check the status of a delegated task",
-    },
+    subagents=[
+        SubAgentConfig(name="researcher", description="Researches topics", instructions="..."),
+    ],
 )
-agent = Agent(
-    "openai:gpt-4o",
-    deps_type=Deps,
-    toolsets=[toolset],
-    system_prompt="You can delegate tasks to specialized subagents.",
-)
-
-# Run the agent
-result = agent.run_sync(
-    "Research Python async patterns and write a blog post about it",
-    deps=Deps(),
-)
-print(result.output)
+agent = Agent("openai:gpt-4.1", toolsets=[toolset])
 ```
+
+> **Note:** With the toolset API, you need to wire `get_subagent_system_prompt()` manually. `SubAgentCapability` handles this automatically.
 
 ## Execution Modes
 

@@ -149,6 +149,7 @@ nav:
   - Getting Help: getting-help.md
   - Core Concepts:
     - concepts/index.md
+    - Capability: concepts/capability.md
     - Subagents: concepts/subagents.md
     - Toolset: concepts/toolset.md
     - Types: concepts/types.md
@@ -171,6 +172,7 @@ nav:
       - examples/research-team.md
   - API Reference:
     - api/index.md
+    - Capability: api/capability.md
     - Toolset: api/toolset.md
     - Types: api/types.md
     - Protocols: api/protocols.md
