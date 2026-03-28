@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0] - 2026-03-26
+
+### Added
+
+- **`SubAgentCapability`** — new pydantic-ai [capability](https://ai.pydantic.dev/capabilities/) that bundles subagent tools + dynamic system prompt into a single plug-and-play unit. This is now the recommended way to add subagent delegation:
+  ```python
+  from pydantic_ai import Agent
+  from subagents_pydantic_ai import SubAgentCapability, SubAgentConfig
+
+  agent = Agent("openai:gpt-4.1", capabilities=[SubAgentCapability(
+      subagents=[SubAgentConfig(name="researcher", description="Researches topics", instructions="...")],
+  )])
+  ```
+  - Registers all tools automatically (`task`, `check_task`, `answer_subagent`, `list_active_tasks`, `soft_cancel_task`, `hard_cancel_task`)
+  - Injects dynamic system prompt listing available subagents
+  - Exposes `task_manager` property for observability
+  - Supports AgentSpec YAML serialization
+
+### Changed
+
+- **Minimum pydantic-ai version bumped to `>=1.71.0`** (capabilities API support)
+- **Documentation rewritten for capabilities-first approach** — README and examples now lead with `SubAgentCapability`
+
 ## [0.0.8] - 2026-03-06
 
 ### Fixed

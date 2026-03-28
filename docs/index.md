@@ -26,43 +26,48 @@ Think of it as the building blocks for multi-agent systems - where a parent agen
 
 4. **Smart Mode Selection**: Auto-mode intelligently chooses sync vs async based on task complexity and requirements.
 
-## Hello World Example
+## Quick Start (Capability API)
+
+The recommended way to add subagent delegation — one import, plug and play:
 
 ```python
-from dataclasses import dataclass, field
-from typing import Any
+from pydantic_ai import Agent
+from subagents_pydantic_ai import SubAgentCapability, SubAgentConfig
+
+agent = Agent(
+    "openai:gpt-4.1",
+    capabilities=[SubAgentCapability(
+        subagents=[
+            SubAgentConfig(
+                name="researcher",
+                description="Researches topics and gathers information",
+                instructions="You are a research assistant. Investigate thoroughly.",
+            ),
+        ],
+    )],
+)
+
+result = await agent.run("Research Python async patterns")
+```
+
+`SubAgentCapability` automatically registers all tools and injects a dynamic system
+prompt listing available subagents. A general-purpose subagent is included by default.
+
+### Alternative: Toolset API
+
+```python
 from pydantic_ai import Agent
 from subagents_pydantic_ai import create_subagent_toolset, SubAgentConfig
 
-@dataclass
-class Deps:
-    subagents: dict[str, Any] = field(default_factory=dict)
-
-    def clone_for_subagent(self, max_depth: int = 0) -> "Deps":
-        return Deps(subagents={} if max_depth <= 0 else self.subagents.copy())
-
-# Define specialized subagents
-subagents = [
-    SubAgentConfig(
-        name="researcher",
-        description="Researches topics and gathers information",
-        instructions="You are a research assistant. Investigate thoroughly.",
-    ),
-]
-
-# Create toolset and agent
-toolset = create_subagent_toolset(subagents=subagents)
-agent = Agent(
-    "openai:gpt-4o",
-    deps_type=Deps,
-    toolsets=[toolset],
-    system_prompt="You can delegate tasks to specialized subagents.",
+toolset = create_subagent_toolset(
+    subagents=[SubAgentConfig(name="researcher", description="...", instructions="...")],
 )
-
-# Run the agent
-result = agent.run_sync("Research Python async patterns", deps=Deps())
-print(result.output)
+agent = Agent("openai:gpt-4.1", toolsets=[toolset])
 ```
+
+!!! note
+    With the toolset API you need to wire `get_subagent_system_prompt()` into the
+    agent's instructions manually. `SubAgentCapability` handles this automatically.
 
 ## Core Features
 
