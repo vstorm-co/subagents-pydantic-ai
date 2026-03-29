@@ -90,6 +90,9 @@ from subagents_pydantic_ai.protocols import (
 from subagents_pydantic_ai.registry import (
     DynamicAgentRegistry as DynamicAgentRegistry,
 )
+from subagents_pydantic_ai.spec import (
+    SubAgentSpec as SubAgentSpec,
+)
 from subagents_pydantic_ai.toolset import (
     SubAgentToolset as SubAgentToolset,
 )
@@ -128,9 +131,6 @@ from subagents_pydantic_ai.types import (
 )
 from subagents_pydantic_ai.types import (
     decide_execution_mode as decide_execution_mode,
-)
-from subagents_pydantic_ai.spec import (
-    SubAgentSpec as SubAgentSpec,
 )
 
 __all__ = [
