@@ -133,6 +133,6 @@ class SubAgentSpec(BaseModel):
             "extra",
         ):
             if field_name in config:
-                data[field_name] = config.get(field_name)  # type: ignore[literal-required]
+                data[field_name] = config.get(field_name)
 
         return cls(**data)
