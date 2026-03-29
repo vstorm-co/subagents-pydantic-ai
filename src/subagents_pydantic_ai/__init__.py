@@ -90,6 +90,9 @@ from subagents_pydantic_ai.protocols import (
 from subagents_pydantic_ai.registry import (
     DynamicAgentRegistry as DynamicAgentRegistry,
 )
+from subagents_pydantic_ai.spec import (
+    SubAgentSpec as SubAgentSpec,
+)
 from subagents_pydantic_ai.toolset import (
     SubAgentToolset as SubAgentToolset,
 )
@@ -137,6 +140,7 @@ __all__ = [
     "SubAgentDepsProtocol",
     "MessageBusProtocol",
     # Types
+    "SubAgentSpec",
     "SubAgentConfig",
     "TaskHandle",
     "AgentMessage",
