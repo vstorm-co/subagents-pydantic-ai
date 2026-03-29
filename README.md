@@ -216,6 +216,48 @@ The parent agent can then respond using `answer_subagent(task_id, answer)`.
 | `soft_cancel_task` | Request cooperative cancellation |
 | `hard_cancel_task` | Immediately cancel a task |
 
+## Declarative Configuration (YAML/JSON)
+
+Define subagents in YAML or JSON files using `SubAgentSpec`:
+
+```yaml
+# subagents.yaml
+- name: researcher
+  description: Research assistant
+  instructions: You research topics thoroughly.
+  model: openai:gpt-4.1-mini
+- name: coder
+  description: Code writer
+  instructions: You write clean Python code.
+  can_ask_questions: true
+  max_questions: 3
+```
+
+```python
+import yaml
+from subagents_pydantic_ai import SubAgentSpec
+
+# Load from YAML
+with open("subagents.yaml") as f:
+    specs = [SubAgentSpec(**s) for s in yaml.safe_load(f)]
+
+# Convert to SubAgentConfig dicts
+configs = [spec.to_config() for spec in specs]
+
+# Use with capability
+agent = Agent("openai:gpt-4.1", capabilities=[
+    SubAgentCapability(subagents=configs),
+])
+```
+
+Round-trip between specs and configs:
+
+```python
+# Config -> Spec -> Config
+spec = SubAgentSpec.from_config(existing_config)
+config = spec.to_config()
+```
+
 ## Per-Subagent Configuration
 
 ```python

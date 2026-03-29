@@ -129,6 +129,9 @@ from subagents_pydantic_ai.types import (
 from subagents_pydantic_ai.types import (
     decide_execution_mode as decide_execution_mode,
 )
+from subagents_pydantic_ai.spec import (
+    SubAgentSpec as SubAgentSpec,
+)
 
 __all__ = [
     # Capability
@@ -137,6 +140,7 @@ __all__ = [
     "SubAgentDepsProtocol",
     "MessageBusProtocol",
     # Types
+    "SubAgentSpec",
     "SubAgentConfig",
     "TaskHandle",
     "AgentMessage",
