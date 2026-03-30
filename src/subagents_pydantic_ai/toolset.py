@@ -400,7 +400,9 @@ def create_subagent_toolset(  # noqa: C901
             if handle.usage is not None:
                 u = handle.usage
                 tokens = getattr(u, "input_tokens", 0) + getattr(u, "output_tokens", 0)
-                status_info.append(f"Usage: {tokens} tokens ({getattr(u, 'input_tokens', 0)} in / {getattr(u, 'output_tokens', 0)} out)")
+                status_info.append(
+                    f"Usage: {tokens} tokens ({getattr(u, 'input_tokens', 0)} in / {getattr(u, 'output_tokens', 0)} out)"
+                )
         elif handle.status == TaskStatus.FAILED:
             status_info.append(f"Error: {handle.error}")
         elif handle.status == TaskStatus.WAITING_FOR_ANSWER:
@@ -547,7 +549,12 @@ def create_subagent_toolset(  # noqa: C901
 
         Returns dict with ``input_tokens``, ``output_tokens``, ``total_tokens``, ``requests``.
         """
-        totals: dict[str, int] = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0, "requests": 0}
+        totals: dict[str, int] = {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "total_tokens": 0,
+            "requests": 0,
+        }
         for handle in task_manager.list_handles():
             if handle.usage is not None:
                 totals["input_tokens"] += getattr(handle.usage, "input_tokens", 0)

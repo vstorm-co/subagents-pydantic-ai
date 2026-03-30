@@ -215,7 +215,6 @@ class TestCompileSubagent:
             assert call_kwargs.kwargs.get("retries") == 3
             assert call_kwargs.kwargs.get("result_retries") == 2
 
-
     def test_compile_with_prebuilt_agent(self):
         """Pre-built agent in config is used as-is, skipping default creation."""
         from subagents_pydantic_ai.toolset import _compile_subagent
@@ -2490,7 +2489,9 @@ class TestUsageTracking:
         bus = InMemoryMessageBus()
         tm = TaskManager(message_bus=bus)
         h1 = TaskHandle(task_id="t1", subagent_name="a", description="task1")
-        h2 = TaskHandle(task_id="t2", subagent_name="b", description="task2", status=TaskStatus.COMPLETED)
+        h2 = TaskHandle(
+            task_id="t2", subagent_name="b", description="task2", status=TaskStatus.COMPLETED
+        )
         tm.handles["t1"] = h1
         tm.handles["t2"] = h2
 
@@ -2506,16 +2507,25 @@ class TestUsageTracking:
         tm = toolset.task_manager  # type: ignore[attr-defined]
 
         h1 = TaskHandle(
-            task_id="t1", subagent_name="a", description="task1",
-            status=TaskStatus.COMPLETED, usage=MockUsage(input_tokens=100, output_tokens=50, requests=1),
+            task_id="t1",
+            subagent_name="a",
+            description="task1",
+            status=TaskStatus.COMPLETED,
+            usage=MockUsage(input_tokens=100, output_tokens=50, requests=1),
         )
         h2 = TaskHandle(
-            task_id="t2", subagent_name="b", description="task2",
-            status=TaskStatus.COMPLETED, usage=MockUsage(input_tokens=200, output_tokens=100, requests=2),
+            task_id="t2",
+            subagent_name="b",
+            description="task2",
+            status=TaskStatus.COMPLETED,
+            usage=MockUsage(input_tokens=200, output_tokens=100, requests=2),
         )
         h3 = TaskHandle(
-            task_id="t3", subagent_name="c", description="task3",
-            status=TaskStatus.FAILED, usage=None,
+            task_id="t3",
+            subagent_name="c",
+            description="task3",
+            status=TaskStatus.FAILED,
+            usage=None,
         )
         tm.handles["t1"] = h1
         tm.handles["t2"] = h2
@@ -2565,15 +2575,21 @@ class TestUsageTracking:
         mock_agent.run = AsyncMock(return_value=BareResult("bare output"))
 
         config = SubAgentConfig(
-            name="test", description="Test", instructions="Do test",
+            name="test",
+            description="Test",
+            instructions="Do test",
         )
         message_bus = InMemoryMessageBus()
         task_manager = TaskManager(message_bus=message_bus)
 
         await _run_async(
-            agent=mock_agent, config=config, description="test",
-            deps=MockDeps(), task_id="bare-1",
-            task_manager=task_manager, message_bus=message_bus,
+            agent=mock_agent,
+            config=config,
+            description="test",
+            deps=MockDeps(),
+            task_id="bare-1",
+            task_manager=task_manager,
+            message_bus=message_bus,
         )
         await asyncio.sleep(0.1)
 
