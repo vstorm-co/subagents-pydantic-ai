@@ -37,11 +37,24 @@ class MockRunContext:
     _subagent_state: dict[str, Any] | None = None
 
 
+class MockUsage:
+    """Mock RunUsage."""
+
+    def __init__(self, input_tokens: int = 100, output_tokens: int = 50, requests: int = 1):
+        self.input_tokens = input_tokens
+        self.output_tokens = output_tokens
+        self.requests = requests
+
+
 class MockResult:
     """Mock agent result."""
 
-    def __init__(self, output: str):
+    def __init__(self, output: Any = "mock result"):
         self.output = output
+        self._usage = MockUsage()
+
+    def usage(self) -> MockUsage:
+        return self._usage
 
 
 def _make_mock_compiled_subagent(config: SubAgentConfig) -> CompiledSubAgent:
@@ -201,6 +214,55 @@ class TestCompileSubagent:
             call_kwargs = mock_agent_class.call_args
             assert call_kwargs.kwargs.get("retries") == 3
             assert call_kwargs.kwargs.get("result_retries") == 2
+
+
+    def test_compile_with_prebuilt_agent(self):
+        """Pre-built agent in config is used as-is, skipping default creation."""
+        from subagents_pydantic_ai.toolset import _compile_subagent
+
+        mock_agent = MagicMock()
+        config = SubAgentConfig(
+            name="custom",
+            description="Custom agent",
+            instructions="Do stuff",
+            agent=mock_agent,
+        )
+        compiled = _compile_subagent(config, "openai:gpt-4")
+        assert compiled.agent is mock_agent
+        assert compiled.name == "custom"
+
+    def test_compile_with_agent_factory(self):
+        """Agent factory in config is called to create agent."""
+        from subagents_pydantic_ai.toolset import _compile_subagent
+
+        mock_agent = MagicMock()
+        factory = MagicMock(return_value=mock_agent)
+        config = SubAgentConfig(
+            name="factory-agent",
+            description="Factory agent",
+            instructions="Do stuff",
+            agent_factory=factory,
+        )
+        compiled = _compile_subagent(config, "openai:gpt-4")
+        assert compiled.agent is mock_agent
+        factory.assert_called_once_with(config)
+
+    def test_compile_priority_agent_over_factory(self):
+        """Pre-built agent takes priority over agent_factory."""
+        from subagents_pydantic_ai.toolset import _compile_subagent
+
+        prebuilt = MagicMock()
+        factory = MagicMock()
+        config = SubAgentConfig(
+            name="priority",
+            description="Priority test",
+            instructions="Test",
+            agent=prebuilt,
+            agent_factory=factory,
+        )
+        compiled = _compile_subagent(config, "openai:gpt-4")
+        assert compiled.agent is prebuilt
+        factory.assert_not_called()
 
 
 class TestCreateAskParentToolset:
@@ -728,6 +790,8 @@ class TestRunAsync:
         assert handle is not None
         assert handle.status == TaskStatus.COMPLETED
         assert handle.result == "task completed"
+        assert handle.usage is not None
+        assert handle.usage.input_tokens == 100
 
     @pytest.mark.asyncio
     async def test_run_async_task_fails(self):
@@ -2344,3 +2408,177 @@ class TestMessageBusBranchCoverage:
         # Get messages from empty queue
         messages = await message_bus.get_messages("agent", timeout=0.0)
         assert messages == []
+
+
+class TestSerializeOutput:
+    """Tests for _serialize_output helper."""
+
+    def test_str_passthrough(self):
+        from subagents_pydantic_ai.toolset import _serialize_output
+
+        assert _serialize_output("hello") == "hello"
+
+    def test_pydantic_model(self):
+        from pydantic import BaseModel
+
+        from subagents_pydantic_ai.toolset import _serialize_output
+
+        class MyModel(BaseModel):
+            name: str
+            value: int
+
+        result = _serialize_output(MyModel(name="test", value=42))
+        assert '"name":"test"' in result or '"name": "test"' in result
+        assert '"value":42' in result or '"value": 42' in result
+
+    def test_dataclass(self):
+        from subagents_pydantic_ai.toolset import _serialize_output
+
+        @dataclass
+        class MyData:
+            x: int
+            y: str
+
+        result = _serialize_output(MyData(x=1, y="hello"))
+        assert '"x": 1' in result or '"x":1' in result
+        assert '"y": "hello"' in result or '"y":"hello"' in result
+
+    def test_int(self):
+        from subagents_pydantic_ai.toolset import _serialize_output
+
+        assert _serialize_output(42) == "42"
+
+    def test_list(self):
+        from subagents_pydantic_ai.toolset import _serialize_output
+
+        assert _serialize_output([1, 2, 3]) == "[1, 2, 3]"
+
+
+class TestUsageTracking:
+    """Tests for subagent token usage tracking."""
+
+    @pytest.mark.anyio
+    async def test_check_task_shows_usage(self):
+        """check_task displays usage info for completed tasks."""
+        from subagents_pydantic_ai.types import TaskHandle, TaskStatus
+
+        toolset = create_subagent_toolset(default_model="test")
+        tm = toolset.task_manager  # type: ignore[attr-defined]
+        handle = TaskHandle(
+            task_id="test-usage",
+            subagent_name="worker",
+            description="test task",
+            status=TaskStatus.COMPLETED,
+            result="done",
+            usage=MockUsage(input_tokens=500, output_tokens=200),
+        )
+        tm.handles["test-usage"] = handle
+
+        check_tool = toolset.tools["check_task"]
+        ctx = MockRunContext(deps=MockDeps())
+        result = await check_tool.function(ctx, "test-usage")
+        assert "500" in result
+        assert "200" in result
+        assert "Usage:" in result
+
+    @pytest.mark.anyio
+    async def test_list_handles(self):
+        """TaskManager.list_handles returns all handles."""
+        from subagents_pydantic_ai.message_bus import TaskManager, InMemoryMessageBus
+        from subagents_pydantic_ai.types import TaskHandle, TaskStatus
+
+        bus = InMemoryMessageBus()
+        tm = TaskManager(message_bus=bus)
+        h1 = TaskHandle(task_id="t1", subagent_name="a", description="task1")
+        h2 = TaskHandle(task_id="t2", subagent_name="b", description="task2", status=TaskStatus.COMPLETED)
+        tm.handles["t1"] = h1
+        tm.handles["t2"] = h2
+
+        handles = tm.list_handles()
+        assert len(handles) == 2
+
+    @pytest.mark.anyio
+    async def test_get_total_usage(self):
+        """get_total_usage aggregates across completed tasks."""
+        from subagents_pydantic_ai.types import TaskHandle, TaskStatus
+
+        toolset = create_subagent_toolset(default_model="test")
+        tm = toolset.task_manager  # type: ignore[attr-defined]
+
+        h1 = TaskHandle(
+            task_id="t1", subagent_name="a", description="task1",
+            status=TaskStatus.COMPLETED, usage=MockUsage(input_tokens=100, output_tokens=50, requests=1),
+        )
+        h2 = TaskHandle(
+            task_id="t2", subagent_name="b", description="task2",
+            status=TaskStatus.COMPLETED, usage=MockUsage(input_tokens=200, output_tokens=100, requests=2),
+        )
+        h3 = TaskHandle(
+            task_id="t3", subagent_name="c", description="task3",
+            status=TaskStatus.FAILED, usage=None,
+        )
+        tm.handles["t1"] = h1
+        tm.handles["t2"] = h2
+        tm.handles["t3"] = h3
+
+        totals = toolset.get_total_usage()  # type: ignore[attr-defined]
+        assert totals["input_tokens"] == 300
+        assert totals["output_tokens"] == 150
+        assert totals["total_tokens"] == 450
+        assert totals["requests"] == 3
+
+    @pytest.mark.anyio
+    async def test_check_task_completed_no_usage(self):
+        """check_task works for completed tasks without usage data."""
+        from subagents_pydantic_ai.types import TaskHandle, TaskStatus
+
+        toolset = create_subagent_toolset(default_model="test")
+        tm = toolset.task_manager  # type: ignore[attr-defined]
+        handle = TaskHandle(
+            task_id="no-usage",
+            subagent_name="worker",
+            description="test",
+            status=TaskStatus.COMPLETED,
+            result="done",
+            usage=None,
+        )
+        tm.handles["no-usage"] = handle
+
+        check_tool = toolset.tools["check_task"]
+        ctx = MockRunContext(deps=MockDeps())
+        result = await check_tool.function(ctx, "no-usage")
+        assert "Result: done" in result
+        assert "Usage:" not in result
+
+    @pytest.mark.anyio
+    async def test_run_async_no_usage_attr(self):
+        """Async run handles results without usage() method."""
+        import asyncio
+
+        from subagents_pydantic_ai import InMemoryMessageBus, TaskManager
+
+        class BareResult:
+            def __init__(self, output: str):
+                self.output = output
+
+        mock_agent = MagicMock()
+        mock_agent.run = AsyncMock(return_value=BareResult("bare output"))
+
+        config = SubAgentConfig(
+            name="test", description="Test", instructions="Do test",
+        )
+        message_bus = InMemoryMessageBus()
+        task_manager = TaskManager(message_bus=message_bus)
+
+        await _run_async(
+            agent=mock_agent, config=config, description="test",
+            deps=MockDeps(), task_id="bare-1",
+            task_manager=task_manager, message_bus=message_bus,
+        )
+        await asyncio.sleep(0.1)
+
+        handle = task_manager.get_handle("bare-1")
+        assert handle is not None
+        assert handle.status == TaskStatus.COMPLETED
+        assert handle.result == "bare output"
+        assert handle.usage is None

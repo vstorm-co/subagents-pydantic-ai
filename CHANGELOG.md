@@ -5,11 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.1] - 2026-03-29
+## [0.2.0] - 2026-03-30
 
 ### Added
 
-- **`SubAgentSpec`** — Pydantic model for declarative subagent configuration via YAML/JSON. Enables defining subagents in spec files instead of Python code:
+- **Custom agent support** via `agent` and `agent_factory` fields on `SubAgentConfig`:
+  ```python
+  SubAgentConfig(
+      name="researcher",
+      description="Deep research agent",
+      instructions="...",
+      agent=my_prebuilt_agent,  # pre-built agent, used as-is
+  )
+  # OR
+  SubAgentConfig(
+      name="researcher",
+      description="Deep research agent",
+      instructions="...",
+      agent_factory=lambda cfg: create_deep_agent(  # factory creates agent from config
+          model=cfg["model"], instructions=cfg["instructions"],
+      ),
+  )
+  ```
+  - Priority chain in `_compile_subagent()`: `agent` > `agent_factory` > default `Agent()`
+  - Enables frameworks like pydantic-deep to create full-featured agents as subagents
+- **`default_agent_factory`** parameter on `create_agent_factory_toolset()` — overrides default `Agent()` creation for dynamically spawned agents
+- **`SubAgentSpec`** — Pydantic model for declarative subagent configuration via YAML/JSON:
   ```yaml
   subagents:
     - name: researcher
@@ -17,10 +38,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
       instructions: You research topics thoroughly.
       model: openai:gpt-4.1-mini
   ```
-  - `to_config()` — convert spec to `SubAgentConfig` dict
-  - `from_config()` — create spec from `SubAgentConfig` dict
-  - Full round-trip support: spec -> config -> spec and config -> spec -> config
+  - `to_config()` / `from_config()` round-trip conversion
   - JSON/YAML serialization via Pydantic's `model_dump()` / `model_validate()`
+
+- **Token usage tracking** (issue [#45](https://github.com/vstorm-co/pydantic-deepagents/issues/45)):
+  - `TaskHandle.usage` — stores `RunUsage` from each subagent run
+  - `check_task` displays token usage (input/output) for completed tasks
+  - `get_total_usage()` on toolset — aggregates usage across all task handles
+  - `TaskManager.list_handles()` — returns all task handles
+- **Structured output serialization** (issue [#46](https://github.com/vstorm-co/pydantic-deepagents/issues/46)):
+  - `_serialize_output()` uses `model_dump_json()` for Pydantic models and `json.dumps(asdict())` for dataclasses instead of `str()`, preserving JSON structure for the parent agent
+
+### Changed
+
+- `_compile_subagent()` now checks for custom `agent`/`agent_factory` before creating default `Agent()`
+- Subagent results are now proper JSON when `output_type` is a Pydantic model (previously flattened to Python repr string)
 
 ## [0.1.0] - 2026-03-26
 

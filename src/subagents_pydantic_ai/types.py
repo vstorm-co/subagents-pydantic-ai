@@ -144,6 +144,12 @@ class SubAgentConfig(TypedDict, total=False):
 
     Optional fields:
         model: LLM model to use (defaults to parent's default)
+        agent: Pre-built agent instance. When provided, ``_compile_subagent``
+            uses this instead of creating a new ``Agent``. Useful for passing
+            agents created by frameworks like pydantic-deep.
+        agent_factory: Callable that receives the SubAgentConfig and returns
+            an agent instance. Called by ``_compile_subagent`` if ``agent``
+            is not provided. Signature: ``(config: SubAgentConfig) -> Agent``.
         can_ask_questions: Whether subagent can ask parent questions
         max_questions: Maximum questions per task
         preferred_mode: Default execution mode preference for this subagent
@@ -185,6 +191,8 @@ class SubAgentConfig(TypedDict, total=False):
     description: str
     instructions: str
     model: NotRequired[str | Model]
+    agent: NotRequired[Any]
+    agent_factory: NotRequired[Callable[..., Any]]
     can_ask_questions: NotRequired[bool]
     max_questions: NotRequired[int]
     preferred_mode: NotRequired[Literal["sync", "async", "auto"]]
@@ -258,6 +266,8 @@ class TaskHandle:
     result: str | None = None
     error: str | None = None
     pending_question: str | None = None
+    usage: Any = None
+    """Token usage from the subagent run (``RunUsage`` from pydantic-ai)."""
 
 
 @dataclass

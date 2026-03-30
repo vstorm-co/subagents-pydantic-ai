@@ -45,6 +45,7 @@ agent = Agent(
 | `allowed_models` | `list[str]` | All | Models agents can use |
 | `max_agents` | `int` | `10` | Maximum dynamic agents |
 | `default_model` | `str \| None` | `None` | Default model for new agents |
+| `default_agent_factory` | `Callable \| None` | `None` | Factory used to build every dynamic agent |
 
 ## DynamicAgentRegistry
 
@@ -174,6 +175,43 @@ With this setup:
 - The parent can create new subagents at runtime via `create_agent()`
 - Newly created agents are immediately available to `task()` because both toolsets share the same `registry` instance
 - When the parent removes a dynamic agent, it is no longer discoverable by `task()`
+
+## Default Agent Factory
+
+By default, `create_agent_factory_toolset` builds a plain `pydantic_ai.Agent` for every
+dynamically created agent. Pass `default_agent_factory` to override this with your own
+builder. The factory receives a `SubAgentConfig` and must return an agent instance.
+
+This is useful when you want every dynamically created agent to be built with a specific
+framework (e.g., pydantic-deep) instead of a bare `Agent`:
+
+```python
+from pydantic_deep import create_deep_agent
+from subagents_pydantic_ai import (
+    create_agent_factory_toolset,
+    DynamicAgentRegistry,
+    SubAgentConfig,
+)
+
+def my_factory(config: SubAgentConfig):
+    return create_deep_agent(
+        model=config.get("model", "openai:gpt-4.1"),
+        system_prompt=config["instructions"],
+    )
+
+factory_toolset = create_agent_factory_toolset(
+    registry=DynamicAgentRegistry(),
+    default_agent_factory=my_factory,
+)
+```
+
+When `default_agent_factory` is set, it is called for **every** `create_agent()` invocation.
+If it is `None` (the default), the toolset falls back to creating a standard `pydantic_ai.Agent`.
+
+!!! note
+    `default_agent_factory` on `create_agent_factory_toolset` applies to dynamically created
+    agents only. For pre-configured subagents, use the `agent` or `agent_factory` fields on
+    [`SubAgentConfig`](../concepts/types.md#subagentconfig) instead.
 
 ## Creating Agents at Runtime
 

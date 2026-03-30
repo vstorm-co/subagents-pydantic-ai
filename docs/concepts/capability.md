@@ -91,6 +91,52 @@ agent = Agent(
 )
 ```
 
+## Custom Agents via SubAgentConfig
+
+`SubAgentCapability` supports using custom agent instances through the `agent` and
+`agent_factory` fields on `SubAgentConfig`. When the capability compiles subagents
+internally, it follows the same resolution priority as `_compile_subagent`:
+`agent` > `agent_factory` > default `Agent()`.
+
+```python
+from pydantic_ai import Agent
+from pydantic_deep import create_deep_agent
+from subagents_pydantic_ai import SubAgentCapability, SubAgentConfig
+
+agent = Agent(
+    "openai:gpt-4.1",
+    capabilities=[SubAgentCapability(
+        subagents=[
+            # Pre-built agent
+            SubAgentConfig(
+                name="researcher",
+                description="Researches topics",
+                instructions="You are a research assistant.",
+                agent=create_deep_agent(model="openai:gpt-4.1"),
+            ),
+            # Agent factory
+            SubAgentConfig(
+                name="coder",
+                description="Writes code",
+                instructions="You write Python code.",
+                agent_factory=lambda cfg: create_deep_agent(
+                    model=cfg.get("model", "openai:gpt-4.1"),
+                    system_prompt=cfg["instructions"],
+                ),
+            ),
+            # Default: plain Agent is created automatically
+            SubAgentConfig(
+                name="writer",
+                description="Writes content",
+                instructions="You write clear documentation.",
+            ),
+        ],
+    )],
+)
+```
+
+See [SubAgentConfig](types.md#subagentconfig) for full details on these fields.
+
 ## AgentSpec (YAML)
 
 ```yaml

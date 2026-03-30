@@ -23,6 +23,49 @@ config = SubAgentConfig(
 
 See [Subagents](subagents.md) for full documentation.
 
+#### Custom Agent Support
+
+By default, `_compile_subagent` creates a plain `pydantic_ai.Agent` from the config fields. You can override this behavior with two optional fields: `agent` and `agent_factory`. The resolution priority is:
+
+1. **`agent`** -- a pre-built agent instance, used as-is.
+2. **`agent_factory`** -- a callable `(config: SubAgentConfig) -> Agent`, called at compile time.
+3. **Default** -- a new `pydantic_ai.Agent` is created from the config fields.
+
+**Using a pre-built agent:**
+
+```python
+from pydantic_ai import Agent
+from subagents_pydantic_ai import SubAgentConfig
+
+my_agent = Agent("openai:gpt-4.1", system_prompt="You are a custom researcher.")
+
+config = SubAgentConfig(
+    name="researcher",
+    description="Researches topics",
+    instructions="You are a research assistant.",
+    agent=my_agent,  # This agent is used directly
+)
+```
+
+**Using an agent factory:**
+
+```python
+from pydantic_deep import create_deep_agent
+from subagents_pydantic_ai import SubAgentConfig
+
+config = SubAgentConfig(
+    name="researcher",
+    description="Researches topics",
+    instructions="You are a research assistant.",
+    agent_factory=lambda cfg: create_deep_agent(
+        model=cfg.get("model", "openai:gpt-4.1"),
+        system_prompt=cfg["instructions"],
+    ),
+)
+```
+
+The `agent_factory` callable receives the full `SubAgentConfig` as its argument, so it can read any field (model, instructions, toolsets, extra, etc.) to configure the agent.
+
 ### CompiledSubAgent
 
 A pre-compiled subagent ready for use. Created internally by the toolset.
