@@ -28,6 +28,7 @@ def create_agent_factory_toolset(
     toolsets_factory: ToolsetFactory | None = None,
     capabilities_map: dict[str, CapabilityFactory] | None = None,
     id: str | None = None,
+    default_agent_factory: Any | None = None,
 ) -> FunctionToolset[Any]:
     """Create a toolset for dynamic agent creation.
 
@@ -163,11 +164,14 @@ def create_agent_factory_toolset(
 
         # Create agent
         try:
-            agent: Agent[Any, str] = Agent(
-                actual_model,
-                system_prompt=instructions,
-                toolsets=agent_toolsets or None,
-            )
+            if default_agent_factory is not None:
+                agent: Any = default_agent_factory(config)
+            else:
+                agent = Agent(
+                    actual_model,
+                    system_prompt=instructions,
+                    toolsets=agent_toolsets or None,
+                )
 
             registry.register(config, agent)
 

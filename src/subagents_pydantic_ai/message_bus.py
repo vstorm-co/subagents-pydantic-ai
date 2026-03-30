@@ -472,3 +472,11 @@ class TaskManager:
             List of task IDs for tasks that haven't completed.
         """
         return [task_id for task_id, task in self.tasks.items() if not task.done()]
+
+    def list_handles(self) -> list[Any]:
+        """Get all task handles (completed and active).
+
+        Returns:
+            List of TaskHandle objects.
+        """
+        return list(self.handles.values())

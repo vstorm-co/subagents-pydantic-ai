@@ -474,3 +474,28 @@ class TestCreateAgentFactoryToolset:
 
         assert "Error creating agent" in result
         assert "Something went wrong" in result
+
+    async def test_create_agent_with_default_agent_factory(self, registry: DynamicAgentRegistry):
+        """default_agent_factory is used instead of Agent() when provided."""
+        mock_agent = MagicMock()
+        factory = MagicMock(return_value=mock_agent)
+
+        toolset = create_agent_factory_toolset(
+            registry=registry,
+            default_agent_factory=factory,
+        )
+        create_tool = toolset.tools["create_agent"]
+        ctx = MockRunContext(deps=MockDeps())
+
+        result = await create_tool.function(
+            ctx,
+            name="custom-agent",
+            description="Custom",
+            instructions="Do things",
+        )
+
+        assert "created successfully" in result
+        factory.assert_called_once()
+        # The factory receives a SubAgentConfig
+        call_arg = factory.call_args[0][0]
+        assert call_arg["name"] == "custom-agent"

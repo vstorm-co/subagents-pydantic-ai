@@ -43,6 +43,23 @@ from subagents_pydantic_ai.types import (
 )
 
 
+def _serialize_output(output: Any) -> str:
+    """Serialize subagent output preserving structure for Pydantic models.
+
+    For Pydantic models (BaseModel), returns JSON via ``model_dump_json()``.
+    For dataclasses with ``__dataclass_fields__``, returns JSON via ``json.dumps``.
+    For everything else, returns ``str(output)``.
+    """
+    if hasattr(output, "model_dump_json"):
+        return output.model_dump_json()  # type: ignore[no-any-return]
+    if hasattr(output, "__dataclass_fields__"):
+        import dataclasses
+        import json
+
+        return json.dumps(dataclasses.asdict(output), default=str)
+    return str(output)
+
+
 def _create_general_purpose_config() -> SubAgentConfig:
     """Create the default general-purpose subagent config."""
     return SubAgentConfig(
@@ -59,6 +76,11 @@ def _compile_subagent(
 ) -> CompiledSubAgent:
     """Compile a subagent configuration into a ready-to-use agent.
 
+    Agent resolution priority:
+    1. ``config["agent"]`` — pre-built agent instance, used as-is
+    2. ``config["agent_factory"]`` — callable(config) -> agent
+    3. Default — creates ``pydantic_ai.Agent`` from config fields
+
     Args:
         config: The subagent configuration.
         default_model: Default model to use if not specified in config.
@@ -66,22 +88,36 @@ def _compile_subagent(
     Returns:
         CompiledSubAgent with agent instance.
     """
+    # 1. Pre-built agent — use as-is
+    if config.get("agent") is not None:
+        return CompiledSubAgent(
+            name=config["name"],
+            description=config["description"],
+            agent=config["agent"],
+            config=config,
+        )
+
+    # 2. Agent factory — call it
+    factory = config.get("agent_factory")
+    if factory is not None:
+        custom_agent = factory(config)
+        return CompiledSubAgent(
+            name=config["name"],
+            description=config["description"],
+            agent=custom_agent,
+            config=config,
+        )
+
+    # 3. Default: create plain pydantic-ai Agent
     model = config.get("model", default_model)
 
-    # Build toolsets list
     toolsets: list[Any] = []
-
-    # Add ask_parent tool for sync mode communication
     ask_parent_toolset = _create_ask_parent_toolset()
     toolsets.append(ask_parent_toolset)
 
-    # Add custom toolsets from config
     if config.get("toolsets"):
         toolsets.extend(config["toolsets"])
 
-    # Note: toolsets_factory will be called at runtime with deps
-
-    # Get additional agent kwargs (e.g., builtin_tools)
     agent_kwargs = config.get("agent_kwargs", {})
 
     agent: Agent[Any, str] = Agent(
@@ -361,6 +397,11 @@ def create_subagent_toolset(  # noqa: C901
 
         if handle.status == TaskStatus.COMPLETED:
             status_info.append(f"Result: {handle.result}")
+            if handle.usage is not None:
+                u = handle.usage
+                inp = getattr(u, "input_tokens", 0)
+                out = getattr(u, "output_tokens", 0)
+                status_info.append(f"Usage: {inp + out} tokens ({inp} in / {out} out)")
         elif handle.status == TaskStatus.FAILED:
             status_info.append(f"Error: {handle.error}")
         elif handle.status == TaskStatus.WAITING_FOR_ANSWER:
@@ -502,6 +543,27 @@ def create_subagent_toolset(  # noqa: C901
     # Expose task_manager for external monitoring (e.g., push notifications)
     toolset.task_manager = task_manager  # type: ignore[attr-defined]
 
+    def get_total_usage() -> dict[str, int]:
+        """Get aggregate token usage across all completed subagent tasks.
+
+        Returns dict with ``input_tokens``, ``output_tokens``, ``total_tokens``, ``requests``.
+        """
+        totals: dict[str, int] = {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "total_tokens": 0,
+            "requests": 0,
+        }
+        for handle in task_manager.list_handles():
+            if handle.usage is not None:
+                totals["input_tokens"] += getattr(handle.usage, "input_tokens", 0)
+                totals["output_tokens"] += getattr(handle.usage, "output_tokens", 0)
+                totals["requests"] += getattr(handle.usage, "requests", 0)
+        totals["total_tokens"] = totals["input_tokens"] + totals["output_tokens"]
+        return totals
+
+    toolset.get_total_usage = get_total_usage  # type: ignore[attr-defined]
+
     return toolset
 
 
@@ -541,7 +603,7 @@ async def _run_sync(
 
     try:
         result = await agent.run(prompt, **run_kwargs)
-        return str(result.output)
+        return _serialize_output(result.output)
     except Exception as e:
         return f"Error executing task: {e}"
 
@@ -612,7 +674,9 @@ async def _run_async(
 
         try:
             result = await agent.run(prompt, **run_kwargs)
-            handle.result = str(result.output)
+            handle.result = _serialize_output(result.output)
+            if hasattr(result, "usage"):
+                handle.usage = result.usage()
             handle.status = TaskStatus.COMPLETED
         except asyncio.CancelledError:
             handle.status = TaskStatus.CANCELLED

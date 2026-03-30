@@ -42,6 +42,48 @@ agent = Agent(
 )
 ```
 
+## Custom Agent Resolution
+
+When the toolset compiles a `SubAgentConfig`, the internal `_compile_subagent` function
+decides which agent instance to use. The resolution priority is:
+
+1. **`config["agent"]`** -- a pre-built agent instance, used as-is.
+2. **`config["agent_factory"]`** -- a `(config: SubAgentConfig) -> Agent` callable, invoked at compile time.
+3. **Default** -- a new `pydantic_ai.Agent` is created from the config's `model`, `instructions`, `toolsets`, and `agent_kwargs` fields.
+
+This means you can mix pre-built agents, factory-built agents, and default agents in the
+same subagent list:
+
+```python
+from pydantic_ai import Agent
+from subagents_pydantic_ai import create_subagent_toolset, SubAgentConfig
+
+toolset = create_subagent_toolset(
+    subagents=[
+        SubAgentConfig(
+            name="custom",
+            description="Uses a pre-built agent",
+            instructions="...",
+            agent=my_prebuilt_agent,
+        ),
+        SubAgentConfig(
+            name="factory-built",
+            description="Built via factory",
+            instructions="...",
+            agent_factory=lambda cfg: build_agent(cfg),
+        ),
+        SubAgentConfig(
+            name="default",
+            description="Default Agent created automatically",
+            instructions="...",
+        ),
+    ],
+)
+```
+
+See [SubAgentConfig](types.md#subagentconfig) for full documentation of the `agent` and
+`agent_factory` fields.
+
 ## Available Tools
 
 The toolset provides these tools to your agent:
