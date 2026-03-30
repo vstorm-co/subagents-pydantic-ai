@@ -165,9 +165,9 @@ def create_agent_factory_toolset(
         # Create agent
         try:
             if default_agent_factory is not None:
-                agent = default_agent_factory(config)
+                agent: Any = default_agent_factory(config)
             else:
-                agent: Agent[Any, str] = Agent(
+                agent = Agent(
                     actual_model,
                     system_prompt=instructions,
                     toolsets=agent_toolsets or None,

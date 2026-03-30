@@ -51,7 +51,7 @@ def _serialize_output(output: Any) -> str:
     For everything else, returns ``str(output)``.
     """
     if hasattr(output, "model_dump_json"):
-        return output.model_dump_json()
+        return output.model_dump_json()  # type: ignore[no-any-return]
     if hasattr(output, "__dataclass_fields__"):
         import dataclasses
         import json
@@ -100,11 +100,11 @@ def _compile_subagent(
     # 2. Agent factory — call it
     factory = config.get("agent_factory")
     if factory is not None:
-        agent = factory(config)
+        custom_agent = factory(config)
         return CompiledSubAgent(
             name=config["name"],
             description=config["description"],
-            agent=agent,
+            agent=custom_agent,
             config=config,
         )
 
