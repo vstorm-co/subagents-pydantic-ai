@@ -2483,7 +2483,7 @@ class TestUsageTracking:
     @pytest.mark.anyio
     async def test_list_handles(self):
         """TaskManager.list_handles returns all handles."""
-        from subagents_pydantic_ai.message_bus import TaskManager, InMemoryMessageBus
+        from subagents_pydantic_ai.message_bus import InMemoryMessageBus, TaskManager
         from subagents_pydantic_ai.types import TaskHandle, TaskStatus
 
         bus = InMemoryMessageBus()

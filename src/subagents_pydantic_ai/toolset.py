@@ -399,9 +399,10 @@ def create_subagent_toolset(  # noqa: C901
             status_info.append(f"Result: {handle.result}")
             if handle.usage is not None:
                 u = handle.usage
-                tokens = getattr(u, "input_tokens", 0) + getattr(u, "output_tokens", 0)
+                inp = getattr(u, "input_tokens", 0)
+                out = getattr(u, "output_tokens", 0)
                 status_info.append(
-                    f"Usage: {tokens} tokens ({getattr(u, 'input_tokens', 0)} in / {getattr(u, 'output_tokens', 0)} out)"
+                    f"Usage: {inp + out} tokens ({inp} in / {out} out)"
                 )
         elif handle.status == TaskStatus.FAILED:
             status_info.append(f"Error: {handle.error}")
