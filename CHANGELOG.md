@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.2] - 2026-04-20
+
+### Added
+
+- **`ask_user` parameter on `create_subagent_toolset`** — `Callable[[str], Awaitable[str]]` invoked when a subagent calls `ask_parent` in sync mode. The callback is attached to the cloned subagent deps via `_subagent_state["ask_callback"]`, so `ask_parent` resolves through the same path as async mode. Required for sync-mode subagents with `can_ask_questions=True`. Exported as `AskUserCallback`.
+
+### Fixed
+
+- **`ask_parent` no longer silently fails in sync mode** — previously, when a subagent with `can_ask_questions=True` ran in sync mode without an `ask_user` method on deps, `ask_parent` returned `"Error: Cannot ask parent - no communication channel configured"` — which the subagent LLM tended to launder into an invented answer. The error message now points to the fix and a first-class `ask_user` hook exists. ([#23](https://github.com/vstorm-co/subagents-pydantic-ai/issues/23))
+
+### Changed
+
+- **Docs: corrected sync-mode question semantics** — `docs/advanced/questions.md` previously claimed the parent could respond via `answer_subagent` in sync mode. That is architecturally impossible because the parent's run loop is blocked inside the subagent's `task` call. The docs now describe the `ask_user` callback flow.
+
 ## [0.2.1] - 2026-03-31
 
 ### Changed

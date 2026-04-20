@@ -718,6 +718,63 @@ class TestRunSync:
         assert "Error" in result
         assert "Something went wrong" in result
 
+    @pytest.mark.asyncio
+    async def test_run_sync_injects_ask_user_into_state(self):
+        """ask_user wires into _subagent_state so ask_parent can resolve it."""
+        captured: dict[str, Any] = {}
+
+        async def fake_run(prompt: str, **kwargs: Any) -> MockResult:
+            captured["deps"] = kwargs["deps"]
+            return MockResult("done")
+
+        mock_agent = MagicMock()
+        mock_agent.run = AsyncMock(side_effect=fake_run)
+
+        async def ask_user(question: str) -> str:
+            return f"answer: {question}"
+
+        deps = MockDeps()
+        config = SubAgentConfig(
+            name="test",
+            description="Test agent",
+            instructions="Do test",
+            can_ask_questions=True,
+        )
+
+        await _run_sync(
+            agent=mock_agent,
+            config=config,
+            description="do the thing",
+            deps=deps,
+            task_id="task-123",
+            ask_user=ask_user,
+        )
+
+        state = captured["deps"]._subagent_state
+        assert state["ask_callback"] is ask_user
+
+    @pytest.mark.asyncio
+    async def test_run_sync_no_ask_user_does_not_touch_deps(self):
+        """Without ask_user, _run_sync must not mutate deps state."""
+        mock_agent = MagicMock()
+        mock_agent.run = AsyncMock(return_value=MockResult("done"))
+        deps = MockDeps()
+        config = SubAgentConfig(
+            name="test",
+            description="Test agent",
+            instructions="Do test",
+        )
+
+        await _run_sync(
+            agent=mock_agent,
+            config=config,
+            description="do the thing",
+            deps=deps,
+            task_id="task-123",
+        )
+
+        assert not hasattr(deps, "_subagent_state")
+
 
 class TestRunAsync:
     """Tests for _run_async function."""
@@ -864,6 +921,41 @@ class TestToolsetIntegration:
             result = await task_tool.function(ctx, "do something", "helper", "sync")
 
             assert result == "Sync result"
+
+    @pytest.mark.asyncio
+    async def test_task_sync_forwards_ask_user(self):
+        """create_subagent_toolset threads ask_user into _run_sync calls."""
+        config = SubAgentConfig(
+            name="helper",
+            description="Helps with tasks",
+            instructions="Help with things",
+        )
+
+        async def ask_user(question: str) -> str:
+            return "answer"
+
+        with (
+            patch(
+                "subagents_pydantic_ai.toolset._compile_subagent",
+                return_value=_make_mock_compiled_subagent(config),
+            ),
+            patch(
+                "subagents_pydantic_ai.toolset._run_sync",
+                new_callable=AsyncMock,
+                return_value="ok",
+            ) as mock_run_sync,
+        ):
+            toolset = create_subagent_toolset(
+                subagents=[config],
+                include_general_purpose=False,
+                ask_user=ask_user,
+            )
+
+            task_tool = toolset.tools["task"]
+            ctx = MockRunContext(deps=MockDeps())
+            await task_tool.function(ctx, "do something", "helper", "sync")
+
+            assert mock_run_sync.call_args.kwargs["ask_user"] is ask_user
 
     @pytest.mark.asyncio
     async def test_task_async_execution(self):

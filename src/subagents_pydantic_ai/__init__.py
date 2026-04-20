@@ -103,6 +103,9 @@ from subagents_pydantic_ai.types import (
     AgentMessage as AgentMessage,
 )
 from subagents_pydantic_ai.types import (
+    AskUserCallback as AskUserCallback,
+)
+from subagents_pydantic_ai.types import (
     CompiledSubAgent as CompiledSubAgent,
 )
 from subagents_pydantic_ai.types import (
@@ -150,6 +153,7 @@ __all__ = [
     "TaskCharacteristics",
     "ExecutionMode",
     "ToolsetFactory",
+    "AskUserCallback",
     "CompiledSubAgent",
     # Functions
     "decide_execution_mode",
