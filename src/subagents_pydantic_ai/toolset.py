@@ -31,6 +31,7 @@ from subagents_pydantic_ai.prompts import (
 )
 from subagents_pydantic_ai.protocols import SubAgentDepsProtocol
 from subagents_pydantic_ai.types import (
+    AskUserCallback,
     CompiledSubAgent,
     ExecutionMode,
     SubAgentConfig,
@@ -187,12 +188,16 @@ def _create_ask_parent_toolset() -> FunctionToolset[Any]:
                         _task_manager.clear_answer_future(_task_id)
                         return "Error: Parent did not respond in time"
 
-        # Fallback: use deps.ask_user callback (sync mode / plan toolset)
+        # Fallback: use deps.ask_user callback (plan toolset compatibility)
         ask_user = getattr(ctx.deps, "ask_user", None)
         if ask_user:
             return str(await ask_user(question, []))
 
-        return "Error: Cannot ask parent - no communication channel configured"
+        return (
+            "Error: Cannot ask parent - no communication channel configured. "
+            "In sync mode, pass `ask_user=...` to create_subagent_toolset(), "
+            "or use mode='async' so the parent can respond via answer_subagent()."
+        )
 
     return toolset
 
@@ -206,6 +211,7 @@ def create_subagent_toolset(  # noqa: C901
     id: str | None = None,
     registry: Any | None = None,
     descriptions: dict[str, str] | None = None,
+    ask_user: AskUserCallback | None = None,
 ) -> FunctionToolset[Any]:
     """Create a toolset for delegating tasks to subagents.
 
@@ -233,6 +239,11 @@ def create_subagent_toolset(  # noqa: C901
             Keys are tool names (task, check_task, answer_subagent,
             list_active_tasks, wait_tasks, soft_cancel_task, hard_cancel_task).
             When provided, the custom description replaces the built-in default.
+        ask_user: Optional callback invoked when a subagent calls ``ask_parent``
+            in sync mode. Receives the question and must return the answer.
+            Required for sync-mode subagents with ``can_ask_questions=True``;
+            without it the subagent gets a configuration error. In async mode
+            the parent answers via ``answer_subagent`` instead.
 
     Returns:
         FunctionToolset configured with subagent management tools.
@@ -359,6 +370,7 @@ def create_subagent_toolset(  # noqa: C901
                 deps=subagent_deps,
                 task_id=task_id,
                 extra_toolsets=runtime_toolsets,
+                ask_user=ask_user,
             )
         else:
             return await _run_async(
@@ -574,6 +586,7 @@ async def _run_sync(
     deps: Any,
     task_id: str,
     extra_toolsets: list[Any] | None = None,
+    ask_user: AskUserCallback | None = None,
 ) -> str:
     """Run a subagent task synchronously (blocking).
 
@@ -584,12 +597,22 @@ async def _run_sync(
         deps: Dependencies for the subagent.
         task_id: Unique task identifier.
         extra_toolsets: Additional toolsets to pass to agent.run().
+        ask_user: Optional callback for `ask_parent` in sync mode. When
+            provided, it is attached to the cloned subagent deps via
+            ``_subagent_state["ask_callback"]`` so `ask_parent` resolves to
+            it. The parent agent cannot answer directly in sync mode because
+            its run loop is blocked here.
 
     Returns:
         The subagent's response.
     """
     can_ask = config.get("can_ask_questions", True)
     max_questions = config.get("max_questions")
+
+    if ask_user is not None:
+        # Reuse the async-mode `_subagent_state["ask_callback"]` path so
+        # `ask_parent` has a single resolution order across both modes.
+        deps._subagent_state = {"ask_callback": ask_user}
 
     prompt = get_task_instructions_prompt(
         description,

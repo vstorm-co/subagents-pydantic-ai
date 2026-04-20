@@ -7,7 +7,7 @@ including configuration types, message types, and task management types.
 from __future__ import annotations
 
 import uuid
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
@@ -127,6 +127,26 @@ Example:
             create_file_toolset(deps.backend),
             create_todo_toolset(),
         ]
+    ```
+"""
+
+
+AskUserCallback = Callable[[str], Awaitable[str]]
+"""Callback invoked when a subagent calls ``ask_parent`` in sync mode.
+
+Receives the subagent's question and must return the answer. Typically wired
+to a human-in-the-loop UI, a CLI ``input()`` prompt, or a pre-canned answerer
+for tests.
+
+Example:
+    ```python
+    async def ask_user(question: str) -> str:
+        return input(f"Subagent asks: {question}\n> ")
+
+    toolset = create_subagent_toolset(
+        subagents=subagents,
+        ask_user=ask_user,
+    )
     ```
 """
 

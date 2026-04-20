@@ -72,20 +72,32 @@ If the limit is reached, the subagent should proceed with best judgment or retur
 
 ### Sync Mode
 
-In sync mode, questions block the parent immediately:
+In sync mode the parent's run loop is blocked inside the `task` call for the
+entire duration of the subagent, so the parent agent itself cannot answer the
+question. Questions are routed to an `ask_user` callback you provide to
+`create_subagent_toolset`:
 
 ```python
+from subagents_pydantic_ai import create_subagent_toolset
+
+async def ask_user(question: str) -> str:
+    # Wire this to your UI, CLI prompt, websocket, etc.
+    return input(f"Subagent asks: {question}\n> ")
+
+toolset = create_subagent_toolset(
+    subagents=subagents,
+    ask_user=ask_user,
+)
+
 # Parent calls:
 task(description="Analyze the report", subagent_type="analyst", mode="sync")
-
-# If subagent asks a question, the task pauses and parent sees:
-# "Subagent question: What time period should I focus on?"
-
-# Parent must answer to continue:
-answer_subagent(task_id="...", answer="Focus on Q4 2024")
-
-# Task continues and eventually returns result
+# When the subagent calls ask_parent, ask_user runs and its return value
+# is delivered back to the subagent as the answer.
 ```
+
+If sync mode is used without an `ask_user` callback, `ask_parent` returns a
+configuration error to the subagent. Either provide the callback, drop
+`can_ask_questions` on that subagent, or switch to async mode.
 
 ### Async Mode
 
