@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from unittest.mock import patch
+
 import pytest
-from pydantic_ai import Agent
+from pydantic_ai import Agent, UsageLimits
 from pydantic_ai.models.test import TestModel
 
 from subagents_pydantic_ai import SubAgentCapability, SubAgentConfig
@@ -92,6 +94,16 @@ class TestSubAgentCapability:
         """Max nesting depth is forwarded."""
         cap = _cap(max_nesting_depth=2)
         assert cap.max_nesting_depth == 2
+
+    def test_usage_limits_forwarded_to_toolset(self):
+        """usage_limits is forwarded to the underlying toolset factory."""
+        usage_limits = UsageLimits(request_limit=3, total_tokens_limit=1000)
+
+        with patch("subagents_pydantic_ai.capability.create_subagent_toolset") as create_toolset:
+            cap = _cap(usage_limits=usage_limits)
+
+        assert cap.usage_limits is usage_limits
+        assert create_toolset.call_args.kwargs["usage_limits"] is usage_limits
 
 
 class TestSubAgentCapabilityIntegration:

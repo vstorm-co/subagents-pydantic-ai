@@ -12,7 +12,7 @@ import uuid
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic_ai import Agent, RunContext
+from pydantic_ai import Agent, RunContext, UsageLimits
 from pydantic_ai.models import Model
 from pydantic_ai.toolsets import FunctionToolset
 
@@ -40,6 +40,7 @@ from subagents_pydantic_ai.types import (
     TaskPriority,
     TaskStatus,
     ToolsetFactory,
+    UsageLimitsFactory,
     decide_execution_mode,
 )
 
@@ -212,6 +213,7 @@ def create_subagent_toolset(  # noqa: C901
     registry: Any | None = None,
     descriptions: dict[str, str] | None = None,
     ask_user: AskUserCallback | None = None,
+    usage_limits: UsageLimits | UsageLimitsFactory | None = None,
 ) -> FunctionToolset[Any]:
     """Create a toolset for delegating tasks to subagents.
 
@@ -244,6 +246,11 @@ def create_subagent_toolset(  # noqa: C901
             Required for sync-mode subagents with ``can_ask_questions=True``;
             without it the subagent gets a configuration error. In async mode
             the parent answers via ``answer_subagent`` instead.
+        usage_limits: Optional pydantic-ai usage limits for delegated subagent
+            runs. Pass a ``UsageLimits`` instance to reuse the same limits for
+            every task, or a factory called once per task with the parent run
+            context and selected subagent config. A factory may return ``None``
+            to run that task without explicit limits.
 
     Returns:
         FunctionToolset configured with subagent management tools.
@@ -340,6 +347,10 @@ def create_subagent_toolset(  # noqa: C901
         if agent is None:
             return f"Error: Subagent '{subagent_type}' is not properly initialized"
 
+        resolved_usage_limits = (
+            usage_limits(ctx, config) if callable(usage_limits) else usage_limits
+        )
+
         # Create deps for subagent
         parent_deps = ctx.deps
         subagent_deps = parent_deps.clone_for_subagent(max_nesting_depth - 1)
@@ -371,6 +382,7 @@ def create_subagent_toolset(  # noqa: C901
                 task_id=task_id,
                 extra_toolsets=runtime_toolsets,
                 ask_user=ask_user,
+                usage_limits=resolved_usage_limits,
             )
         else:
             return await _run_async(
@@ -383,6 +395,7 @@ def create_subagent_toolset(  # noqa: C901
                 message_bus=message_bus,
                 extra_toolsets=runtime_toolsets,
                 priority=priority,
+                usage_limits=resolved_usage_limits,
             )
 
     @toolset.tool(description=_descs.get("check_task", CHECK_TASK_DESCRIPTION))
@@ -587,6 +600,7 @@ async def _run_sync(
     task_id: str,
     extra_toolsets: list[Any] | None = None,
     ask_user: AskUserCallback | None = None,
+    usage_limits: UsageLimits | None = None,
 ) -> str:
     """Run a subagent task synchronously (blocking).
 
@@ -602,6 +616,8 @@ async def _run_sync(
             ``_subagent_state["ask_callback"]`` so `ask_parent` resolves to
             it. The parent agent cannot answer directly in sync mode because
             its run loop is blocked here.
+        usage_limits: Optional pydantic-ai usage limits to pass to
+            ``agent.run()``.
 
     Returns:
         The subagent's response.
@@ -623,6 +639,8 @@ async def _run_sync(
     run_kwargs: dict[str, Any] = {"deps": deps}
     if extra_toolsets:
         run_kwargs["toolsets"] = extra_toolsets
+    if usage_limits is not None:
+        run_kwargs["usage_limits"] = usage_limits
 
     try:
         result = await agent.run(prompt, **run_kwargs)
@@ -641,6 +659,7 @@ async def _run_async(
     message_bus: InMemoryMessageBus,
     priority: TaskPriority = TaskPriority.NORMAL,
     extra_toolsets: list[Any] | None = None,
+    usage_limits: UsageLimits | None = None,
 ) -> str:
     """Run a subagent task asynchronously (background).
 
@@ -654,6 +673,8 @@ async def _run_async(
         message_bus: Message bus for communication.
         priority: Task priority level.
         extra_toolsets: Additional toolsets to pass to agent.run().
+        usage_limits: Optional pydantic-ai usage limits to pass to
+            ``agent.run()``.
 
     Returns:
         Task handle information as string.
@@ -694,6 +715,8 @@ async def _run_async(
         run_kwargs: dict[str, Any] = {"deps": deps}
         if extra_toolsets:
             run_kwargs["toolsets"] = extra_toolsets
+        if usage_limits is not None:
+            run_kwargs["usage_limits"] = usage_limits
 
         try:
             result = await agent.run(prompt, **run_kwargs)

@@ -28,13 +28,13 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from pydantic_ai import RunContext
+from pydantic_ai import RunContext, UsageLimits
 from pydantic_ai.capabilities import AbstractCapability
 from pydantic_ai.toolsets import AbstractToolset
 
 from subagents_pydantic_ai.prompts import get_subagent_system_prompt
 from subagents_pydantic_ai.toolset import create_subagent_toolset
-from subagents_pydantic_ai.types import SubAgentConfig, ToolsetFactory
+from subagents_pydantic_ai.types import SubAgentConfig, ToolsetFactory, UsageLimitsFactory
 
 
 @dataclass
@@ -69,6 +69,8 @@ class SubAgentCapability(AbstractCapability[Any]):
         toolsets_factory: Factory for subagent toolsets.
         registry: Dynamic agent registry.
         descriptions: Custom tool descriptions override.
+        usage_limits: Optional static or per-task usage limits for delegated
+            subagent runs.
     """
 
     subagents: list[SubAgentConfig] | None = None
@@ -78,6 +80,7 @@ class SubAgentCapability(AbstractCapability[Any]):
     toolsets_factory: ToolsetFactory | None = None
     registry: Any = None
     descriptions: dict[str, str] | None = None
+    usage_limits: UsageLimits | UsageLimitsFactory | None = None
     _toolset: AbstractToolset[Any] | None = field(default=None, init=False, repr=False)
 
     def __post_init__(self) -> None:
@@ -91,6 +94,7 @@ class SubAgentCapability(AbstractCapability[Any]):
             id="subagents",
             registry=self.registry,
             descriptions=self.descriptions,
+            usage_limits=self.usage_limits,
         )
 
     @classmethod
