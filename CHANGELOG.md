@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.8] - 2026-06-26
+
+### Added
+
+- **Stateful subagent sessions.** A subagent run can now carry a `chat_trace_id` so its message history is persisted and a later task can resume the same conversation instead of starting cold.
+- **Observability captured on task handles.** After a run, the task handle records the run's `usage`, full `message_history`, `run_id`, `conversation_id`, and `traceparent`. Capture is best-effort — a telemetry failure never flips a successful run to `FAILED`.
+
+### Changed
+
+- **Require `pydantic-ai-slim>=2.0`** (was `>=1.74.0`). The observability capture reads `AgentRunResult.usage`, which pydantic-ai 2.0 turned from a method into a property; the package now targets the 2.0 API.
+- Renamed `session_id` to `chat_trace_id` so the identifier isn't redacted by Logfire.
+
+### Fixed
+
+- **pydantic-ai 2.0 compatibility: `'RunUsage' object is not callable`.** Usage was captured via `result.usage()`, but 2.0 made `usage` a property returning `RunUsage`. Calling it raised inside the post-run capture and flipped an otherwise-successful subagent run to `FAILED`, so every delegated task errored. Usage is now read as the `result.usage` property.
+- Updated tests to register context-less tools via `FunctionToolset.tool_plain`; pydantic-ai 2.0 turned the context-less `.tool()` form from a deprecation warning into a hard error.
+
 ## [0.2.7] - 2026-06-04
 
 ### Added

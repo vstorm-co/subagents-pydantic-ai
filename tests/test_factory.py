@@ -162,7 +162,7 @@ class TestCreateAgentFactoryToolset:
         def mock_capability_factory(deps: MockDeps) -> list[FunctionToolset[Any]]:
             toolset: FunctionToolset[Any] = FunctionToolset(id="mock_cap")
 
-            @toolset.tool
+            @toolset.tool_plain
             async def mock_tool(x: str) -> str:
                 return x
 

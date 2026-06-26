@@ -324,7 +324,7 @@ class TestCompileSubagent:
 
         custom_toolset: FunctionToolset[Any] = FunctionToolset(id="custom")
 
-        @custom_toolset.tool
+        @custom_toolset.tool_plain
         async def custom_tool(x: str) -> str:
             return x
 
