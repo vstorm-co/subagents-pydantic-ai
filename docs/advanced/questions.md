@@ -100,14 +100,14 @@ If sync mode is used without an `ask_user` callback, `ask_parent` returns a
 configuration error to the subagent. Either provide the callback, drop
 `can_ask_questions` on that subagent, or switch to async mode.
 
-!!! warning "`SubAgentCapability` does not wire `ask_user`"
-    [`SubAgentCapability`][subagents_pydantic_ai.capability.SubAgentCapability]
-    builds its toolset without passing an `ask_user` callback, so sync-mode
-    questions (`can_ask_questions=True`) cannot be answered through the
-    capability. If you need sync-mode `ask_parent`, build the toolset directly
-    with [`create_subagent_toolset`][subagents_pydantic_ai.toolset.create_subagent_toolset]
-    and pass `ask_user=...` (or use async mode, where the parent answers via
-    `answer_subagent`).
+[`SubAgentCapability`][subagents_pydantic_ai.capability.SubAgentCapability] takes
+the same argument and forwards it:
+
+```python
+from subagents_pydantic_ai import SubAgentCapability
+
+cap = SubAgentCapability(subagents=subagents, ask_user=ask_user)
+```
 
 ### Async Mode
 

@@ -12,8 +12,10 @@ needs:
   they always propagate.
 - **`UserError`** is a setup mistake no retry can fix. Reporting it to the model as
   a task failure hides it, so it always propagates.
-- **`UsageLimitExceeded`** on a budget shared with the parent means the whole agent
-  tree is out of budget, so it propagates too.
+- **`UsageLimitExceeded`** means a delegation ran out of budget. Every subagent
+  budget is its own -- a child run never gets the parent's usage tally -- but
+  containing it would let the parent keep fanning out into an empty wallet, so it
+  propagates too.
 - **Everything else** is a failure the parent can react to. It reaches the parent as
   `ModelRetry`, which engages pydantic-ai's retry budget, rather than as a normal
   tool result whose text happens to start with `Error`.
@@ -50,7 +52,7 @@ from subagents_pydantic_ai._observability import (
 from subagents_pydantic_ai._state import SubAgentState, bind_subagent_state
 from subagents_pydantic_ai.message_bus import InMemoryMessageBus, TaskManager
 from subagents_pydantic_ai.prompts import get_task_instructions_prompt
-from subagents_pydantic_ai.retry import RetryConfig, run_with_retry
+from subagents_pydantic_ai.retry import OnRetryCallback, RetryConfig, run_with_retry
 from subagents_pydantic_ai.types import (
     AskUserCallback,
     MessageType,
@@ -78,6 +80,13 @@ _ALWAYS_PROPAGATE: tuple[type[Exception], ...] = (
 
 Containing the first five breaks the agent graph -- they are deferred/approval
 control flow, not failures. `UserError` is a configuration bug that no retry fixes.
+"""
+
+_USAGE_LIMIT_MARKER = "usage limit exceeded"
+"""Prefix both modes record on `handle.error` when a budget runs out.
+
+Sync propagates the exception and background mode contains it, but telemetry
+should not have to know which mode a delegation ran in to spot the same outcome.
 """
 
 _HUMAN_IN_THE_LOOP: tuple[type[Exception], ...] = (CallDeferred, ApprovalRequired)
@@ -154,7 +163,7 @@ async def _run_sync(
 
     Raises:
         ModelRetry: When the subagent failed and no `on_failure` message is set.
-        Exception: Control-flow signals, `UserError`, a shared `UsageLimitExceeded`,
+        Exception: Control-flow signals, `UserError`, `UsageLimitExceeded`,
             and -- when `contain_errors` is false -- any other subagent exception.
     """
     prompt = _task_prompt(config, description)
@@ -174,12 +183,13 @@ async def _run_sync(
                 prompt,
                 run_kwargs=run_kwargs,
                 retry=RetryConfig.from_config(config),
+                on_retry=_retry_recorder(handle),
             )
     except _ALWAYS_PROPAGATE:
         _fail(handle, "propagated")
         raise
-    except UsageLimitExceeded:
-        _fail(handle, "usage limit exceeded")
+    except UsageLimitExceeded as exc:
+        _fail(handle, f"{_USAGE_LIMIT_MARKER}: {exc}")
         raise
     except (ModelRetry, UnexpectedModelBehavior) as exc:
         return _degrade(handle, config, task_id, exc, crashed=False)
@@ -197,6 +207,24 @@ async def _run_sync(
         # can never flip a successful run to FAILED.
         capture_observability(handle, result)
     return output
+
+
+def _retry_recorder(handle: TaskHandle | None) -> OnRetryCallback | None:
+    """Record each transient retry on the handle, or `None` when there is no handle.
+
+    Both execution modes need this: `retry_count` is documented without a mode
+    qualifier, and `sync` is the default, so leaving it out there reported zero
+    retries for the path most delegations take.
+    """
+    if handle is None:
+        return None
+
+    def on_retry(attempt: int, exc: BaseException, delay: float) -> None:
+        handle.status = TaskStatus.RETRYING
+        handle.retry_count = attempt
+        handle.error = f"Transient error (retry {attempt}): {exc}"
+
+    return on_retry
 
 
 def _fail(handle: TaskHandle | None, error: str) -> None:
@@ -305,11 +333,6 @@ async def _run_async(
     )
 
     async def run_task() -> None:
-        def on_retry(attempt: int, exc: BaseException, delay: float) -> None:
-            handle.status = TaskStatus.RETRYING
-            handle.retry_count = attempt
-            handle.error = f"Transient error (retry {attempt}): {exc}"
-
         def cancel_requested() -> bool:
             # Cooperative cancellation: `soft_cancel` sets this event and the run
             # loop polls it between graph nodes, so the subagent stops at a clean
@@ -327,7 +350,7 @@ async def _run_async(
                     prompt,
                     run_kwargs=run_kwargs,
                     retry=RetryConfig.from_config(config),
-                    on_retry=on_retry,
+                    on_retry=_retry_recorder(handle),
                     cancel_check=cancel_requested,
                     inject_messages=pending_steering,
                 )
@@ -337,6 +360,8 @@ async def _run_async(
         except asyncio.CancelledError:
             handle.finish(TaskStatus.CANCELLED, error="Task was cancelled")
             raise
+        except UsageLimitExceeded as exc:
+            handle.finish(TaskStatus.FAILED, error=f"{_USAGE_LIMIT_MARKER}: {exc}")
         except _HUMAN_IN_THE_LOOP as exc:
             handle.finish(
                 TaskStatus.FAILED,

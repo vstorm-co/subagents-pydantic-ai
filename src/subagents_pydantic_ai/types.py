@@ -282,8 +282,8 @@ class SubAgentConfig(_SubAgentConfigRequired, total=False):
             parent, logged with its traceback, so one failed delegation cannot
             abort the whole run. Set `False` to let crashes propagate.
             Control-flow signals (`CallDeferred`, `ApprovalRequired`,
-            `Skip*`), `UserError`, and a shared `UsageLimitExceeded` always
-            propagate regardless.
+            `Skip*`), `UserError`, and `UsageLimitExceeded` always propagate
+            regardless.
 
     Example with builtin_tools:
         ```python

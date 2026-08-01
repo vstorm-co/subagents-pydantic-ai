@@ -247,3 +247,13 @@ class TestDynamicAgentRegistry:
             registry.register(config, MockAgent(f"agent-{i}"))
 
         assert registry.count() == 100
+
+
+class TestZeroMaxAgents:
+    def test_zero_max_agents_rejects_every_registration(self):
+        """`max_agents=0` used to read as falsy, so it imposed no cap at all."""
+        registry = DynamicAgentRegistry(max_agents=0)
+        config = SubAgentConfig(name="agent-0", description="Agent 0", instructions="Do stuff")
+
+        with pytest.raises(ValueError, match=r"Maximum number of agents \(0\) reached"):
+            registry.register(config, MockAgent("agent-0"))

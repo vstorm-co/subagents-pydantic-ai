@@ -10,7 +10,19 @@ import pytest
 from pydantic_ai import Agent, UsageLimits
 from pydantic_ai.models.test import TestModel
 
-from subagents_pydantic_ai import DynamicAgentRegistry, SubAgentCapability, SubAgentConfig
+from subagents_pydantic_ai import (
+    DynamicAgentRegistry,
+    SubAgentCapability,
+    SubAgentConfig,
+    create_subagent_toolset,
+)
+
+_CAPABILITY_OWNED_ARGUMENTS = frozenset({"id"})
+"""Toolset arguments the capability sets itself rather than exposing.
+
+`id` is fixed to `"subagents"` so the capability's toolset is addressable by a
+stable name.
+"""
 
 _MODEL = TestModel()
 
@@ -226,3 +238,45 @@ class TestSubAgentCapabilityIntegration:
         assert "task" in tool_names
         assert "check_task" in tool_names
         assert "list_active_tasks" in tool_names
+
+
+class TestCapabilityTracksToolset:
+    """`SubAgentCapability` must forward every `create_subagent_toolset` argument.
+
+    It used to omit three. `ask_user` was the one that bit: it is the only channel
+    a sync-mode subagent has for `ask_parent`, and sync is the default mode, so the
+    documented "a subagent can ask its parent" feature was off by construction on
+    the primary entry point -- and the error text told the user to pass an argument
+    the capability did not accept.
+    """
+
+    def test_every_toolset_argument_is_reachable(self):
+        import inspect
+
+        toolset_args = set(inspect.signature(create_subagent_toolset).parameters)
+        capability_fields = {
+            name for name in SubAgentCapability.__dataclass_fields__ if not name.startswith("_")
+        }
+
+        assert toolset_args - capability_fields - _CAPABILITY_OWNED_ARGUMENTS == set(), (
+            "create_subagent_toolset gained an argument SubAgentCapability cannot "
+            "reach. Add a field and forward it in __post_init__, or list it in "
+            "_CAPABILITY_OWNED_ARGUMENTS if the capability must own its value."
+        )
+
+    def test_ask_user_is_forwarded(self):
+        """A sync-mode subagent's only route to its parent has to survive the hop."""
+
+        async def ask(question: str) -> str:
+            return "42"
+
+        cap = _cap(ask_user=ask)
+
+        assert cap.get_toolset()._ask_user is ask
+
+    def test_memory_bounds_are_forwarded(self):
+        cap = _cap(max_chat_traces=7, max_task_handles=9)
+        toolset = cap.get_toolset()
+
+        assert toolset._chat_traces._max_traces == 7
+        assert toolset._max_task_handles == 9

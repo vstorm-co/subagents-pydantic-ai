@@ -31,7 +31,7 @@ agent = Agent(
 |---|---|
 | Control-flow signal (`CallDeferred`, `ApprovalRequired`, `Skip*`) | Propagates unchanged |
 | `UserError` | Propagates unchanged |
-| Shared `UsageLimitExceeded` | Propagates unchanged |
+| `UsageLimitExceeded` | Propagates unchanged from a sync delegation |
 | Anything else | `ModelRetry`, or the subagent's `on_failure` message |
 
 ### Control-flow signals propagate
@@ -53,11 +53,19 @@ bug you need to see.
     `mode="sync"` instead. Approval and deferred tools need synchronous
     delegation.
 
-### Usage limits depend on whose budget it was
+### Usage limits stop the parent run
 
-A `UsageLimitExceeded` on a budget shared with the parent means the whole agent
-tree is out of budget, so it propagates. See [Usage limits](usage-limits.md) for
-per-task budgets, which are a soft outcome instead.
+A `UsageLimitExceeded` from a sync delegation propagates. Every subagent budget is
+its own -- the library never hands a child run the parent's usage tally -- but a
+subagent that ran out of budget is still the parent's problem: reporting it as one
+delegation's bad luck lets the parent keep fanning out into an empty wallet. See
+[Usage limits](usage-limits.md).
+
+A background delegation contains it, like every other failure in background mode:
+the tool result (the task id) went back to the parent long ago, so the only outcome
+left to deliver is a status transition. Both modes record the same
+`usage limit exceeded: ...` marker on `handle.error`, so telemetry does not have to
+know which mode a delegation ran in.
 
 ### Everything else becomes a retry
 

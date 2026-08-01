@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 from typing import Any
 
@@ -26,9 +27,17 @@ collide on the tool name.
 """
 
 
+_AGENT_NAME_PATTERN = re.compile(r"[A-Za-z0-9-]+")
+"""ASCII only, matching what the `create_agent` tool descriptions promise the model.
+
+`str.isalnum` is Unicode-aware, so it admitted Cyrillic and fullwidth digits while
+rejecting `café` — an allow-list a model can silently exceed is not one.
+"""
+
+
 def validate_agent_name(name: str) -> str | None:
     """Return an error message when the agent name is invalid."""
-    if not name or not all(c.isalnum() or c == "-" for c in name):
+    if not _AGENT_NAME_PATTERN.fullmatch(name):
         return "Error: Name must contain only letters, numbers, and hyphens"
     return None
 

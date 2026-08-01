@@ -1,8 +1,8 @@
 # Usage limits
 
 A fan-out of subagents can burn a lot of tokens before the parent notices. Usage
-limits put a ceiling on every delegated run, either one shared budget or a fresh
-one per task.
+limits put a ceiling on every delegated run, either the same ceiling everywhere
+or one computed per task.
 
 ```python
 from pydantic_ai import Agent, UsageLimits
@@ -66,17 +66,18 @@ def limits_for(ctx: RunContext[MyDeps], config: SubAgentConfig) -> UsageLimits |
 
 ## What happens when a limit is hit
 
-`UsageLimitExceeded` propagates to the parent run rather than being contained. A
-budget shared with the parent means the whole agent tree is out of budget, and
-quietly reporting that as one subagent's bad luck would let the parent keep
-delegating into an empty wallet.
+`UsageLimitExceeded` from a sync delegation propagates to the parent run rather
+than being contained. Quietly reporting an exhausted budget as one subagent's bad
+luck would let the parent keep delegating into an empty wallet. A background
+delegation has no caller left to raise into, so it records the failure on the
+handle instead -- see [Failure handling](errors.md).
 
-The task handle records `failed`, so your telemetry sees which delegation hit the
-ceiling:
+Either way the task handle records `failed`, so your telemetry sees which
+delegation hit the ceiling:
 
 ```python
 for handle in toolset.task_manager.list_handles():
-    if handle.error == "usage limit exceeded":
+    if handle.error is not None and handle.error.startswith("usage limit exceeded"):
         print(f"{handle.subagent_name} ran out of budget")
 ```
 

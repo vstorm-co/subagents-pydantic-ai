@@ -4690,3 +4690,37 @@ class TestWaitTasksResultTruncation:
     def test_negative_budget_is_rejected(self):
         with pytest.raises(ValueError, match="max_result_chars must be >= 0 or None, got -1"):
             create_subagent_toolset(default_model="test", max_result_chars=-1)
+
+
+class TestMemoryBoundsValidation:
+    """The bounds arguments used to be accepted unchecked.
+
+    `max_agents=0` is the obvious way to write "no dynamic agents" and did the
+    opposite -- the registry read it as falsy and imposed no cap at all. A zero or
+    negative store bound was accepted too, evicting every entry before anything
+    could read it back.
+    """
+
+    @pytest.mark.parametrize("bound", ["max_chat_traces", "max_task_handles"])
+    @pytest.mark.parametrize("value", [0, -5])
+    def test_a_store_that_cannot_hold_an_entry_is_rejected(self, bound: str, value: int):
+        with pytest.raises(ValueError, match=f"{bound} must be >= 1, got {value}"):
+            create_subagent_toolset(default_model="test", **{bound: value})
+
+    def test_negative_max_agents_is_rejected(self):
+        with pytest.raises(ValueError, match="max_agents must be >= 0, got -1"):
+            create_subagent_toolset(default_model="test", max_agents=-1)
+
+    def test_zero_max_agents_allows_no_dynamic_agents(self):
+        """The cap that used to read as unlimited."""
+        toolset = create_subagent_toolset(
+            default_model="test",
+            max_agents=0,
+            delegation_configuration="persisted",
+        )
+
+        with pytest.raises(ValueError, match="Maximum number of agents \\(0\\) reached"):
+            toolset.registry.register(
+                SubAgentConfig(name="a", description="d", instructions="i"),
+                object(),
+            )

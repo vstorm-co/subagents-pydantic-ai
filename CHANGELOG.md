@@ -5,6 +5,66 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.13] - 2026-08-01
+
+Findings from a full-repo audit. Every defect here sat in a place the tooling
+could not see: a disagreement between two call sites that each read fine alone, or
+documentation describing behaviour the code did not implement.
+
+### Fixed
+
+- **Any run could cancel another run's live background task.** `soft_cancel_task`
+  and `hard_cancel_task` guarded with `handle is None and task_id not in tasks` —
+  and a foreign task that is actually running satisfies exactly that, so the guard
+  fell through and the cancel went ahead. `check_task` hid the same task correctly,
+  so one tenant on a shared agent could kill another tenant's work with an id it
+  read out of tool output. A handle scoped to another run now reads exactly like a
+  missing one. The existing isolation test passed against the defect because its
+  fixture registered no `asyncio.Task`; the new test starts a real background
+  delegation and asserts the task survives.
+- **`check_task` told the model a cancelled task was still running.** `CANCELLED`
+  and `RETRYING` fell through to an elapsed-time line computed from `started_at`,
+  so a task cancelled two hours ago reported `Running for: 7200.0s` and never said
+  why it stopped. Both statuses now report their outcome.
+- **A retried attempt got a fresh usage allowance.** `run_with_retry` forwarded
+  `usage_limits` into every attempt but no `usage`, so `Agent.iter` built a new
+  `RunUsage` each time while the replayed history genuinely re-spent the tokens —
+  with the default `max_retries=3` the real ceiling was 4× what the caller
+  configured. Attempts now share one tally, which is what
+  `docs/advanced/usage-limits.md` already promised.
+- **`retry_count` was always 0 for sync delegations.** `_run_sync` passed no
+  `on_retry`, and `sync` is the default mode for both `task` and `delegate`, so the
+  handle field documented for spotting a flaky gateway reported nothing from the
+  path most delegations take.
+- **`SubAgentCapability` could not reach `ask_user`.** It forwarded 15 of
+  `create_subagent_toolset`'s parameters and silently dropped `ask_user`,
+  `max_chat_traces`, and `max_task_handles`. `ask_user` is the only channel a
+  sync-mode subagent has for `ask_parent`, so the advertised question feature was
+  off by construction on the primary entry point — and the error text pointed at a
+  remedy the capability did not accept. All three are now fields, and a parity test
+  fails if the toolset grows an argument the capability cannot reach.
+- **`max_agents=0` meant unlimited.** `DynamicAgentRegistry.register` tested
+  `if self.max_agents and ...`, reading `0` as falsy. It now tests `is not None`, so
+  `0` rejects every registration and `None` stays unlimited. `max_agents`,
+  `max_chat_traces`, and `max_task_handles` are validated at construction:
+  `max_agents >= 0`, and the two stores `>= 1` since a store that cannot hold one
+  entry evicts everything before it can be read back.
+- **`validate_agent_name` enforced a wider rule than it stated.** `str.isalnum` is
+  Unicode-aware, so Cyrillic and fullwidth-digit names passed an allow-list the
+  model was told read "letters, numbers, and hyphens", while `café` was rejected
+  only over a combining accent. It is an explicit ASCII match now.
+- **Sync and async recorded different errors for the same exhausted budget.**
+  `handle.error` was `usage limit exceeded` in sync mode and
+  `UsageLimitExceeded: ...` in background mode, so telemetry had to know how a
+  delegation had been dispatched. Both modes now write `usage limit exceeded: ...`.
+
+### Changed
+
+- `docs/advanced/errors.md` no longer claims a per-task usage budget is a soft
+  outcome, or distinguishes a "shared" `UsageLimitExceeded`: the library never
+  hands a child run the parent's tally, so every subagent budget is its own. It now
+  states what actually differs — sync propagates, background contains.
+
 ## [0.2.12] - 2026-08-01
 
 Correctness, typing, and documentation pass over the whole library. Every public

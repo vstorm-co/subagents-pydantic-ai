@@ -91,7 +91,7 @@ agent = Agent("openai:gpt-4.1", toolsets=[toolset])
 | [**Steering**](advanced/steering.md) | Redirect a running task without losing its progress |
 | [**Cancellation**](advanced/cancellation.md) | Cooperative (clean boundary) or immediate |
 | [**Retries**](advanced/retries.md) | Transient gateway failures resume from accumulated history |
-| [**Usage limits**](advanced/usage-limits.md) | One shared budget, or a fresh budget per task |
+| [**Usage limits**](advanced/usage-limits.md) | One ceiling for every delegation, or one computed per task |
 | [**Observability**](concepts/observability.md) | Per-task cost, tokens, tool-call counts, traceparent |
 | [**Dynamic agents**](advanced/dynamic-agents.md) | Create specialists at runtime, reusable or one-shot |
 

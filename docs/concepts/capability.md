@@ -118,16 +118,12 @@ When you pass `SubAgentCapability` to an agent, pydantic-ai calls:
    listing available subagents with their descriptions (via
    [`get_subagent_system_prompt`][subagents_pydantic_ai.prompts.get_subagent_system_prompt])
 
-!!! warning "Sync-mode questions are not supported via the capability"
-    `SubAgentCapability` builds its toolset without an `ask_user` callback (see
-    [`capability.py`][subagents_pydantic_ai.capability.SubAgentCapability]). A
-    subagent that calls `ask_parent` in **sync** mode therefore gets a
-    configuration error. To support sync-mode questions
-    (`can_ask_questions=True`), build the toolset directly with
-    [`create_subagent_toolset`][subagents_pydantic_ai.toolset.create_subagent_toolset]
-    and pass `ask_user=...`. In **async** mode the parent answers via
-    `answer_subagent`, which works with the capability. See
-    [Parent-Child Questions](../advanced/questions.md).
+!!! note "Sync-mode questions need `ask_user`"
+    In **sync** mode the parent's run loop is blocked inside the delegation, so a
+    subagent's `ask_parent` cannot be answered with `answer_subagent`. Pass
+    `ask_user=...` to the capability to give it a channel; without one, a subagent
+    that asks gets a configuration error back. In **async** mode the parent answers
+    via `answer_subagent`. See [Parent-Child Questions](../advanced/questions.md).
 
 ## Observability
 

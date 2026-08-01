@@ -3,7 +3,9 @@
 Wraps a subagent's execution so transient failures (gateway 5xx, rate
 limits, connection drops from proxies such as LiteLLM) are retried with
 exponential backoff. Each retry resumes with the full accumulated message
-history, so partial progress (model turns, tool calls) is not lost.
+history, so partial progress (model turns, tool calls) is not lost. All
+attempts share one `RunUsage`, so a configured `usage_limits` caps the
+whole delegation rather than being granted again per attempt.
 
 The retry path deliberately uses :meth:`Agent.iter` rather than
 `capture_run_messages()` to recover the failed run's messages, because
@@ -47,6 +49,7 @@ from typing import Any
 
 from pydantic_ai import _agent_graph
 from pydantic_ai.exceptions import ModelAPIError, ModelHTTPError
+from pydantic_ai.usage import RunUsage
 from pydantic_graph import End
 
 from subagents_pydantic_ai.types import SubAgentConfig
@@ -277,7 +280,8 @@ async def run_with_retry(
             inside `message_history`.
         run_kwargs: Extra kwargs forwarded to `agent.run`/`agent.iter`
             (`deps`, `toolsets`, ...). A caller-supplied
-            `message_history` is honoured as the starting history.
+            `message_history` is honoured as the starting history, and a
+            caller-supplied `usage` as the tally every attempt adds to.
         retry: The resolved retry policy.
         on_retry: Optional callback invoked before each retry sleep with
             `(attempt, exc, delay)`. May be sync or async.
@@ -322,12 +326,21 @@ async def run_with_retry(
         return await agent.run(user_prompt, **run_kwargs)
 
     message_history = run_kwargs.pop("message_history", None)
+    # One tally across every attempt. `Agent.iter` builds a fresh `RunUsage` when
+    # `usage` is `None`, so without this each attempt starts counting from zero
+    # while the replayed history genuinely re-spends the tokens -- and a
+    # `usage_limits` ceiling would be granted again per attempt, multiplying the
+    # caller's budget by `max_retries + 1`.
+    caller_usage: RunUsage | None = run_kwargs.pop("usage", None)
+    run_usage = caller_usage if caller_usage is not None else RunUsage()
     prompt = user_prompt
     attempt = 0
     while True:
         run = None
         try:
-            async with agent.iter(prompt, message_history=message_history, **run_kwargs) as run:
+            async with agent.iter(
+                prompt, message_history=message_history, usage=run_usage, **run_kwargs
+            ) as run:
                 await _drive_run(agent, run, handler, cancel_check, inject_messages)
             return run.result
         except Exception as exc:

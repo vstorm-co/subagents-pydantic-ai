@@ -268,7 +268,8 @@ def _create_ask_parent_toolset() -> FunctionToolset[Any]:
 
         return (
             "Error: Cannot ask parent - no communication channel configured. "
-            "In sync mode, pass `ask_user=...` to create_subagent_toolset(), "
+            "In sync mode, pass `ask_user=...` to create_subagent_toolset() or "
+            "SubAgentCapability(), "
             "or use mode='async' so the parent can respond via answer_subagent()."
         )
 
@@ -339,6 +340,9 @@ class SubAgentToolset(FunctionToolset[Any]):
             default_agent_factory=default_agent_factory,
             max_result_chars=max_result_chars,
             ask_timeout_seconds=ask_timeout_seconds,
+            max_agents=max_agents,
+            max_chat_traces=max_chat_traces,
+            max_task_handles=max_task_handles,
         )
 
         self._descriptions = descriptions or {}
@@ -385,6 +389,9 @@ class SubAgentToolset(FunctionToolset[Any]):
         default_agent_factory: AgentFactory | None,
         max_result_chars: int | None,
         ask_timeout_seconds: float,
+        max_agents: int,
+        max_chat_traces: int,
+        max_task_handles: int,
     ) -> None:
         """Reject a configuration that contradicts itself.
 
@@ -439,6 +446,19 @@ class SubAgentToolset(FunctionToolset[Any]):
 
         if ask_timeout_seconds <= 0:
             raise ValueError(f"ask_timeout_seconds must be > 0, got {ask_timeout_seconds}")
+
+        # A store that cannot hold one entry is not a small store, it is a broken
+        # one: every save is evicted before it can be read back, so continuing a
+        # chat trace or checking a finished task always fails.
+        for name, bound in (
+            ("max_chat_traces", max_chat_traces),
+            ("max_task_handles", max_task_handles),
+        ):
+            if bound < 1:
+                raise ValueError(f"{name} must be >= 1, got {bound}")
+
+        if max_agents < 0:
+            raise ValueError(f"max_agents must be >= 0, got {max_agents}")
 
     @property
     def _expose_create_agent(self) -> bool:
@@ -579,6 +599,22 @@ class SubAgentToolset(FunctionToolset[Any]):
         if handle.parent_run_id is not None and handle.parent_run_id != ctx.run_id:
             return None
         return handle
+
+    def _cancel_reads_as_missing(self, task_id: str, handle: TaskHandle | None) -> bool:
+        """Whether a cancel for `task_id` must read as "not found" to this run.
+
+        `handle` is the run-scoped lookup, so `None` means the id is either unknown
+        or owned by another run -- and the two have to be indistinguishable. Task
+        ids are short and appear in tool output, so admitting a foreign id here
+        lets one run kill another run's work. A task with no handle at all has no
+        owner to compare against and stays cancellable.
+        """
+        if handle is not None:
+            return False
+        return (
+            self.task_manager.get_handle(task_id) is not None
+            or task_id not in self.task_manager.tasks
+        )
 
     async def cancel_run_tasks(self, run_id: str | None) -> None:
         """Cancel every background task started by `run_id` and await its cleanup."""
@@ -991,6 +1027,13 @@ class SubAgentToolset(FunctionToolset[Any]):
             status_info.append(f"Error: {handle.error}")
         elif handle.status == TaskStatus.WAITING_FOR_ANSWER:
             status_info.append(f"Question: {handle.pending_question}")
+        elif handle.is_finished:
+            # CANCELLED. Every terminal status has to report its outcome here;
+            # falling through to the elapsed-time line would tell the model a
+            # finished task is still running, and hide why it stopped.
+            status_info.append(f"Outcome: {handle.error}")
+        elif handle.status == TaskStatus.RETRYING:
+            status_info.append(f"Retry {handle.retry_count}: {handle.error}")
         elif handle.started_at:
             elapsed = (utcnow() - handle.started_at).total_seconds()
             status_info.append(f"Running for: {elapsed:.1f}s")
@@ -1147,7 +1190,7 @@ class SubAgentToolset(FunctionToolset[Any]):
             task_id: The task to cancel.
         """
         handle = self._handle_for(ctx, task_id)
-        if handle is None and task_id not in self.task_manager.tasks:
+        if self._cancel_reads_as_missing(task_id, handle):
             return f"Error: Task '{task_id}' not found"
         if await self.task_manager.soft_cancel(task_id):
             return f"Cancellation requested for task '{task_id}'"
@@ -1165,7 +1208,7 @@ class SubAgentToolset(FunctionToolset[Any]):
             task_id: The task to cancel.
         """
         handle = self._handle_for(ctx, task_id)
-        if handle is None and task_id not in self.task_manager.tasks:
+        if self._cancel_reads_as_missing(task_id, handle):
             return f"Error: Task '{task_id}' not found"
         if await self.task_manager.hard_cancel(task_id):
             return f"Task '{task_id}' has been cancelled"
@@ -1262,8 +1305,9 @@ def create_subagent_toolset(
             Do not attach an `ask_parent` toolset in the factory; the toolset
             injects it at run time when needed.
         max_agents: Maximum number of persistent dynamic agents, applied to the
-            registry this toolset creates for `create_agent`. Ignored when
-            `registry` is passed — that registry keeps its own `max_agents`.
+            registry this toolset creates for `create_agent`. `0` rejects every
+            `create_agent` call. Ignored when `registry` is passed — that registry
+            keeps its own `max_agents`.
         max_chat_traces: Maximum number of chat traces (subagent conversations)
             whose message history is kept in memory for continuation via
             `chat_trace_id`. Least-recently-used traces are evicted past this
@@ -1284,16 +1328,17 @@ def create_subagent_toolset(
         contain_errors: Whether an unexpected subagent crash is converted into a
             `ModelRetry` for the parent instead of aborting the parent run.
             Defaults to `True`. Control-flow signals (`CallDeferred`,
-            `ApprovalRequired`, `Skip*`), `UserError`, and a shared
-            `UsageLimitExceeded` always propagate. Individual subagents can
+            `ApprovalRequired`, `Skip*`), `UserError`, and `UsageLimitExceeded`
+            always propagate. Individual subagents can
             override this with `SubAgentConfig["contain_errors"]`.
 
     Returns:
         A `SubAgentToolset` configured with the subagent management tools.
 
     Raises:
-        ValueError: If `max_result_chars` is negative; if `ask_timeout_seconds` is
-            not positive; if `delegation_configuration` is invalid; if
+        ValueError: If `max_result_chars` or `max_agents` is negative; if
+            `ask_timeout_seconds` is not positive; if `max_chat_traces` or
+            `max_task_handles` is below 1; if `delegation_configuration` is invalid; if
             `"oneshot_only"` is combined with `subagents` or a `registry`, neither
             of which is reachable without `task`; or if a mode exposing neither
             `create_agent` nor `delegate` is given `allowed_models`,

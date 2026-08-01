@@ -37,6 +37,16 @@ class TestDynamicAgentValidation:
         assert validate_agent_name("") is not None
         assert validate_agent_name("bad name") is not None
 
+    @pytest.mark.parametrize("name", ["агент", "１２３", "café", "agent⁵"])
+    def test_validate_agent_name_is_ascii_only(self, name: str):
+        """The rule the `create_agent` tool descriptions state, actually enforced.
+
+        `str.isalnum` is Unicode-aware, so Cyrillic and fullwidth-digit names sailed
+        through an allow-list the model was told read "letters, numbers, and
+        hyphens", while `café` was rejected only over a combining accent.
+        """
+        assert validate_agent_name(name) is not None
+
     def test_validate_model(self):
         assert validate_model("openai:gpt-4", ["openai:gpt-4"]) is None
         assert validate_model("anthropic:claude", ["openai:gpt-4"]) is not None

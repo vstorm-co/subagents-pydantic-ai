@@ -174,6 +174,48 @@ class TestStatusRendering:
         assert "Status: retrying" in result
         assert "TaskStatus." not in result
 
+    async def test_check_task_reports_a_retry_instead_of_elapsed_time(self) -> None:
+        """`RETRYING` used to fall through to the elapsed line, hiding the error."""
+        toolset = _toolset()
+        toolset.task_manager.handles["t1"] = TaskHandle(
+            task_id="t1",
+            subagent_name="worker",
+            description="dig",
+            status=TaskStatus.RETRYING,
+            started_at=utcnow(),
+            retry_count=2,
+            error="Transient error (retry 2): 503",
+        )
+
+        result = await toolset.tools["check_task"].function(Ctx(), "t1")
+
+        assert "Retry 2: Transient error (retry 2): 503" in result
+        assert "Running for:" not in result
+
+    async def test_check_task_reports_a_cancellation_instead_of_elapsed_time(self) -> None:
+        """A cancelled task used to report a running-time that grew forever.
+
+        The elapsed line read `utcnow() - started_at`, so a task cancelled hours
+        ago told the orchestrating model it was still running, and never said why
+        it stopped.
+        """
+        toolset = _toolset()
+        handle = TaskHandle(
+            task_id="t1",
+            subagent_name="worker",
+            description="dig",
+            status=TaskStatus.RUNNING,
+            started_at=utcnow(),
+        )
+        handle.finish(TaskStatus.CANCELLED, error="Task was cancelled")
+        toolset.task_manager.handles["t1"] = handle
+
+        result = await toolset.tools["check_task"].function(Ctx(), "t1")
+
+        assert "Status: cancelled" in result
+        assert "Outcome: Task was cancelled" in result
+        assert "Running for:" not in result
+
     async def test_list_active_tasks_renders_status_value(self) -> None:
         toolset = _toolset()
         block = asyncio.Event()
@@ -293,6 +335,85 @@ class TestRunIsolation:
 
         assert soft == "Error: Task 'foreign' not found"
         assert hard == "Error: Task 'foreign' not found"
+
+    async def test_cancel_refuses_another_runs_live_task(self) -> None:
+        """The cancel tools once admitted a foreign task that was actually running.
+
+        `_foreign_handle` registers no `asyncio.Task`, so the guard those tools used
+        (`handle is None and task_id not in tasks`) short-circuited on the missing
+        task and the test above passed without ever reaching the broken case. With a
+        live task registered, the guard fell through and the cancel went ahead.
+        """
+        toolset = _toolset()
+        block = asyncio.Event()
+        await _run_async(
+            agent=StubAgent(block=block),
+            config=_config(),
+            description="theirs",
+            deps=Deps(),
+            task_id="victim",
+            task_manager=toolset.task_manager,
+            message_bus=toolset.task_manager.message_bus,
+            parent_run_id="run-a",
+        )
+
+        soft = await toolset.tools["soft_cancel_task"].function(Ctx(run_id="run-b"), "victim")
+        hard = await toolset.tools["hard_cancel_task"].function(Ctx(run_id="run-b"), "victim")
+
+        assert soft == "Error: Task 'victim' not found"
+        assert hard == "Error: Task 'victim' not found"
+        # The returned string alone passed against the broken code too: assert the
+        # task actually survived.
+        assert toolset.task_manager.handles["victim"].status == TaskStatus.RUNNING
+
+        block.set()
+        await asyncio.gather(*toolset.task_manager.tasks.values(), return_exceptions=True)
+
+    async def test_cancel_allows_own_live_task(self) -> None:
+        """Scoping a cancel must not stop the run that owns the task."""
+        toolset = _toolset()
+        block = asyncio.Event()
+        await _run_async(
+            agent=StubAgent(block=block),
+            config=_config(),
+            description="mine",
+            deps=Deps(),
+            task_id="mine",
+            task_manager=toolset.task_manager,
+            message_bus=toolset.task_manager.message_bus,
+            parent_run_id="run-a",
+        )
+
+        result = await toolset.tools["hard_cancel_task"].function(Ctx(run_id="run-a"), "mine")
+
+        assert result == "Task 'mine' has been cancelled"
+        assert toolset.task_manager.handles["mine"].status == TaskStatus.CANCELLED
+
+        block.set()
+        await asyncio.gather(*toolset.task_manager.tasks.values(), return_exceptions=True)
+
+    async def test_cancel_allows_an_unowned_task(self) -> None:
+        """A task with no handle has no owner to compare against, so it stays cancellable."""
+        toolset = _toolset()
+        block = asyncio.Event()
+        await _run_async(
+            agent=StubAgent(block=block),
+            config=_config(),
+            description="orphan",
+            deps=Deps(),
+            task_id="orphan",
+            task_manager=toolset.task_manager,
+            message_bus=toolset.task_manager.message_bus,
+            parent_run_id="run-a",
+        )
+        del toolset.task_manager.handles["orphan"]
+
+        result = await toolset.tools["soft_cancel_task"].function(Ctx(run_id="run-b"), "orphan")
+
+        assert result == "Cancellation requested for task 'orphan'"
+
+        block.set()
+        await asyncio.gather(*toolset.task_manager.tasks.values(), return_exceptions=True)
 
     async def test_list_active_tasks_omits_another_runs_task(self) -> None:
         toolset = _toolset()
@@ -626,8 +747,8 @@ class TestTaskCancellation:
 
 
 class TestErrorContract:
-    async def test_sync_propagates_shared_usage_limit(self) -> None:
-        """A shared budget being exhausted means the whole tree is out of budget."""
+    async def test_sync_propagates_usage_limit(self) -> None:
+        """Containing an exhausted budget would let the parent keep delegating."""
         handle = TaskHandle(task_id="t1", subagent_name="worker", description="d")
 
         with pytest.raises(UsageLimitExceeded):
@@ -642,7 +763,29 @@ class TestErrorContract:
             )
 
         assert handle.status == TaskStatus.FAILED
-        assert handle.error == "usage limit exceeded"
+        assert handle.error == "usage limit exceeded: out of tokens"
+
+    async def test_async_records_usage_limit_under_the_same_marker(self) -> None:
+        """A background delegation has no caller to raise into, so it records instead.
+
+        The two modes used to write different strings for the same outcome, which
+        made telemetry depend on knowing how a delegation had been dispatched.
+        """
+        toolset = _toolset()
+        await _run_async(
+            agent=StubAgent(error=UsageLimitExceeded("out of tokens")),
+            config=_config(),
+            description="work",
+            deps=Deps(),
+            task_id="t1",
+            task_manager=toolset.task_manager,
+            message_bus=toolset.task_manager.message_bus,
+        )
+        await asyncio.gather(*toolset.task_manager.tasks.values(), return_exceptions=True)
+
+        handle = toolset.task_manager.handles["t1"]
+        assert handle.status == TaskStatus.FAILED
+        assert handle.error == "usage limit exceeded: out of tokens"
 
     @pytest.mark.parametrize(
         "error",

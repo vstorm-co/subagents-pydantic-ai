@@ -12,9 +12,14 @@ import asyncio
 from typing import Any
 
 import pytest
-from pydantic_ai import Agent
+from pydantic_ai import Agent, UsageLimits
 from pydantic_ai.capabilities import AbstractCapability, ProcessEventStream
-from pydantic_ai.exceptions import ModelAPIError, ModelHTTPError, ModelRetry
+from pydantic_ai.exceptions import (
+    ModelAPIError,
+    ModelHTTPError,
+    ModelRetry,
+    UsageLimitExceeded,
+)
 from pydantic_ai.messages import (
     ModelRequest,
     ModelResponse,
@@ -25,6 +30,7 @@ from pydantic_ai.messages import (
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.run import AgentRunResult
+from pydantic_ai.usage import RunUsage
 from pydantic_graph import End
 
 from subagents_pydantic_ai import (
@@ -975,3 +981,175 @@ async def test_run_async_steering_message_reaches_subagent() -> None:
     handle = tm.get_handle("steer-1")
     assert handle is not None
     assert handle.status == TaskStatus.COMPLETED
+
+
+# --------------------------------------------------------------------------- #
+# Usage budget across attempts
+# --------------------------------------------------------------------------- #
+
+
+def _flaky_multi_request_model() -> Any:
+    """FunctionModel spending two counted model requests either side of a 503.
+
+    Request 1 calls the `dig` tool, request 2 fails transiently, and the retried
+    attempt spends two more requests (another tool call, then the answer). Failed
+    requests are not counted against the budget, so the whole task costs three
+    counted requests -- one on the first attempt and two on the second.
+    """
+    calls = {"n": 0}
+
+    def model_fn(messages: list[Any], info: AgentInfo) -> Any:
+        calls["n"] += 1
+        if calls["n"] == 2:
+            raise ModelHTTPError(503, "gateway")
+        if calls["n"] == 4:
+            return ModelResponse(parts=[TextPart(content="done")])
+        return ModelResponse(parts=[ToolCallPart(tool_name="dig", args={})])
+
+    return FunctionModel(model_fn)
+
+
+async def test_retries_share_one_usage_budget() -> None:
+    """A retried attempt must not be granted the caller's allowance again.
+
+    `Agent.iter` builds a fresh `RunUsage` when no `usage` is passed, so every
+    attempt used to start counting from zero while the replayed history genuinely
+    re-spent the tokens -- a `request_limit` of 2 with the default `max_retries=3`
+    permitted up to 8 counted requests. With one shared tally the second attempt
+    inherits the one request already spent and stops at the ceiling.
+    """
+    agent = Agent(_flaky_multi_request_model())
+
+    @agent.tool_plain
+    def dig() -> str:
+        return "dug"
+
+    with pytest.raises(UsageLimitExceeded):
+        await run_with_retry(
+            agent,
+            "search the repo",
+            run_kwargs={"usage_limits": UsageLimits(request_limit=2)},
+            retry=RetryConfig(max_retries=1, jitter=False),
+            sleep=_no_sleep,
+        )
+
+
+async def test_caller_supplied_usage_is_the_shared_tally() -> None:
+    """A caller tracking usage itself keeps that object across every attempt."""
+    agent = Agent(TestModel(custom_output_text="done"))
+    usage = RunUsage()
+
+    result = await run_with_retry(
+        agent,
+        "go",
+        run_kwargs={"usage": usage},
+        retry=RetryConfig(max_retries=1, jitter=False),
+        sleep=_no_sleep,
+    )
+
+    assert result.output == "done"
+    assert usage.requests == 1
+
+
+# --------------------------------------------------------------------------- #
+# _run_sync integration — handle reflects retries
+# --------------------------------------------------------------------------- #
+
+
+async def test_run_sync_records_retries_on_the_handle() -> None:
+    """`retry_count` is documented without a mode qualifier, and `sync` is default.
+
+    `_run_sync` passed no `on_retry`, so every synchronous delegation reported
+    zero retries however flaky the gateway had been.
+    """
+    agent = ScriptedAgent(
+        [
+            {"iter_raise": ModelHTTPError(503, "m"), "messages": [{"x": 1}]},
+            {"result": MockResult("finished", usage=None)},
+        ]
+    )
+    config = SubAgentConfig(
+        name="t",
+        description="d",
+        instructions="i",
+        max_retries=2,
+        retry_initial_delay=0.0,
+        retry_jitter=False,
+    )
+    handle = TaskHandle(task_id="task-sr", subagent_name="t", description="d")
+
+    result = await _run_sync(
+        agent=agent,
+        config=config,
+        description="do it",
+        deps=FakeDeps(),
+        task_id="task-sr",
+        handle=handle,
+    )
+
+    assert result == "finished"
+    assert handle.status == TaskStatus.COMPLETED
+    assert handle.retry_count == 1
+    # Transient error message cleared after eventual success.
+    assert handle.error is None
+
+
+async def test_run_sync_records_retries_before_failing() -> None:
+    """An exhausted retry budget leaves the attempt count and the last error."""
+    agent = ScriptedAgent(
+        [
+            {"iter_raise": ModelHTTPError(503, "m")},
+            {"iter_raise": ModelHTTPError(503, "m")},
+        ]
+    )
+    config = SubAgentConfig(
+        name="t",
+        description="d",
+        instructions="i",
+        max_retries=1,
+        retry_initial_delay=0.0,
+        retry_jitter=False,
+    )
+    handle = TaskHandle(task_id="task-sf", subagent_name="t", description="d")
+
+    with pytest.raises(ModelRetry):
+        await _run_sync(
+            agent=agent,
+            config=config,
+            description="do it",
+            deps=FakeDeps(),
+            task_id="task-sf",
+            handle=handle,
+        )
+
+    assert handle.status == TaskStatus.FAILED
+    assert handle.retry_count == 1
+    assert "503" in str(handle.error)
+
+
+async def test_run_sync_without_a_handle_still_retries() -> None:
+    """No handle means nothing to record on, not a reason to skip the retry."""
+    agent = ScriptedAgent(
+        [
+            {"iter_raise": ModelHTTPError(503, "m")},
+            {"result": MockResult("finished", usage=None)},
+        ]
+    )
+    config = SubAgentConfig(
+        name="t",
+        description="d",
+        instructions="i",
+        max_retries=1,
+        retry_initial_delay=0.0,
+        retry_jitter=False,
+    )
+
+    result = await _run_sync(
+        agent=agent,
+        config=config,
+        description="do it",
+        deps=FakeDeps(),
+        task_id="task-nh",
+    )
+
+    assert result == "finished"

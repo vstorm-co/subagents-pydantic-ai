@@ -22,7 +22,8 @@ class DynamicAgentRegistry:
     Attributes:
         agents: Dictionary mapping agent names to Agent instances.
         configs: Dictionary mapping agent names to their configurations.
-        max_agents: Maximum number of agents allowed (optional limit).
+        max_agents: Maximum number of agents allowed. `None` means unlimited; `0`
+            rejects every registration.
 
     Example:
         ```python
@@ -66,7 +67,9 @@ class DynamicAgentRegistry:
         if name in self.agents:
             raise ValueError(f"Agent '{name}' already exists")
 
-        if self.max_agents and len(self.agents) >= self.max_agents:
+        # `is not None`, not truthiness: `max_agents=0` is the obvious way to write
+        # "no dynamic agents" and must not read as "unlimited". `None` is unlimited.
+        if self.max_agents is not None and len(self.agents) >= self.max_agents:
             raise ValueError(
                 f"Maximum number of agents ({self.max_agents}) reached. "
                 f"Remove an agent before creating a new one."

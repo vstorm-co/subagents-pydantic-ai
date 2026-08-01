@@ -40,6 +40,7 @@ from subagents_pydantic_ai.prompts import get_subagent_system_prompt
 from subagents_pydantic_ai.registry import DynamicAgentRegistry
 from subagents_pydantic_ai.toolset import SubAgentToolset, create_subagent_toolset
 from subagents_pydantic_ai.types import (
+    AskUserCallback,
     DelegationConfiguration,
     SubAgentConfig,
     ToolsetFactory,
@@ -93,10 +94,17 @@ class SubAgentCapability(AbstractCapability[Any]):
         max_agents: Maximum number of persistent dynamic agents, applied to the
             registry the toolset creates for `create_agent`. Ignored when
             `registry` is set — that registry keeps its own `max_agents`.
+        max_chat_traces: Maximum number of subagent conversations kept for
+            `chat_trace_id` continuation, least-recently-used evicted first.
+        max_task_handles: Maximum number of finished task handles retained for
+            status queries. Evicted usage still counts toward `get_total_usage()`.
         max_result_chars: Character budget for a completed task's result in the
             `wait_tasks` listing. Truncated results carry an explicit marker
             pointing at `check_task`, which always returns the full text. Pass
             `None` to never truncate.
+        ask_user: Callback backing `ask_parent`. Required for a sync-mode subagent
+            to ask its parent anything: the parent's run loop is blocked inside the
+            delegation, so `answer_subagent` cannot be reached until it returns.
 
     Raises:
         ValueError: From `create_subagent_toolset` when the configuration is
@@ -118,7 +126,10 @@ class SubAgentCapability(AbstractCapability[Any]):
     capabilities_map: dict[str, CapabilityFactory] | None = None
     default_agent_factory: AgentFactory | None = None
     max_agents: int = 10
+    max_chat_traces: int = 100
+    max_task_handles: int = 500
     max_result_chars: int | None = 2000
+    ask_user: AskUserCallback | None = None
     ask_timeout_seconds: float = DEFAULT_ASK_TIMEOUT_SECONDS
     contain_errors: bool = True
     _toolset: SubAgentToolset = field(init=False, repr=False)
@@ -140,7 +151,10 @@ class SubAgentCapability(AbstractCapability[Any]):
             capabilities_map=self.capabilities_map,
             default_agent_factory=self.default_agent_factory,
             max_agents=self.max_agents,
+            max_chat_traces=self.max_chat_traces,
+            max_task_handles=self.max_task_handles,
             max_result_chars=self.max_result_chars,
+            ask_user=self.ask_user,
             ask_timeout_seconds=self.ask_timeout_seconds,
             contain_errors=self.contain_errors,
         )
