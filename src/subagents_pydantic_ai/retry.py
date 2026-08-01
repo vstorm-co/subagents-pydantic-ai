@@ -5,12 +5,20 @@ limits, connection drops from proxies such as LiteLLM) are retried with
 exponential backoff. Each retry resumes with the full accumulated message
 history, so partial progress (model turns, tool calls) is not lost.
 
-The retry path deliberately uses :meth:`Agent.iter` rather than
-`capture_run_messages()` to recover the failed run's messages, because
-nested `capture_run_messages` contexts do not work
-(https://github.com/pydantic/pydantic-ai/issues/1568) and subagents
-always run nested inside a parent agent's run. `Agent.iter` exposes the
-accumulated history directly, sidestepping that limitation entirely.
+The retry path drives the run through :meth:`Agent.iter`, which hands back an
+`AgentRun`. Three things need that handle:
+
+- resuming a retry from `run.all_messages()` instead of restarting;
+- polling a cancel event *between* nodes, so a soft cancel stops the subagent at
+  a clean boundary rather than mid-tool-call;
+- `AgentRun.enqueue`, which delivers parent -> child steering.
+
+Recovering the failed attempt's messages is no longer among them: nested
+`capture_run_messages()` returns the child's own partial history as of
+pydantic-ai 2.x, so the limitation this module once cited
+(https://github.com/pydantic/pydantic-ai/issues/1568) no longer applies. The
+remaining two reasons do still require `iter`. See
+`docs/plans/upstream-run-streaming-primitive.md`.
 
 Driving the run is more than `async for _ in run`: a bare loop uses
 `AgentRun.__anext__`, which skips capability node hooks and never streams
