@@ -55,7 +55,7 @@ When data is ambiguous or you need clarification:
 
 ## Question Limits
 
-Prevent infinite question loops with `max_questions`:
+Cap the questions one delegation may ask with `max_questions`:
 
 ```python
 SubAgentConfig(
@@ -67,7 +67,26 @@ SubAgentConfig(
 )
 ```
 
-If the limit is reached, the subagent should proceed with best judgment or return partial results.
+The limit is enforced, not suggested. It reaches the subagent both as a line in
+its task prompt and as a counter on the delegation: the fourth `ask_parent` call
+returns
+
+```text
+Error: question limit reached (3 for this task). Finish with the information you already have.
+```
+
+without waiting for the parent. That matters because an unanswered question costs
+the task up to `ask_timeout_seconds` (300 s by default), so a subagent that ignores
+the prompt would otherwise stall repeatedly.
+
+The budget is per delegation, not per conversation: a task continuing a chat trace
+starts with a full allowance.
+
+### Turning questions off entirely
+
+`can_ask_questions=False` removes the `ask_parent` tool from the subagent rather
+than only telling it not to ask, so there is no path by which such a subagent can
+block on a question.
 
 ## Sync vs Async Questions
 

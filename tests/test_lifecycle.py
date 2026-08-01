@@ -23,6 +23,7 @@ from pydantic_ai.exceptions import (
     UsageLimitExceeded,
 )
 from pydantic_ai.models.test import TestModel
+from pydantic_ai.toolsets import FunctionToolset
 
 from subagents_pydantic_ai import (
     AgentMessage,
@@ -32,11 +33,17 @@ from subagents_pydantic_ai import (
     SubAgentConfig,
     TaskHandle,
     TaskManager,
+    TaskPriority,
     TaskStatus,
     create_subagent_toolset,
 )
-from subagents_pydantic_ai._execution import _run_async, _run_sync
+from subagents_pydantic_ai._chat_trace import ChatTraceStore
+from subagents_pydantic_ai._execution import _question_budget, _run_async, _run_sync
+from subagents_pydantic_ai._state import QuestionBudget, SubAgentState, bind_subagent_state
 from subagents_pydantic_ai.types import utcnow
+
+_UNSET = object()
+"""Distinguishes "the agent was never run" from "it was handed no history"."""
 
 # `asyncio_mode = "auto"` in pyproject.toml drives the async tests here.
 
@@ -941,3 +948,372 @@ class TestMessageBusHandlers:
         assert queue.qsize() == 1
         assert len(seen) == 1
         assert "handler exploded" in caplog.text
+
+
+# --------------------------------------------------------------------------- #
+# Run isolation, part two: the stores the handle gate never covered
+# --------------------------------------------------------------------------- #
+
+
+class TestChatTraceIsolation:
+    """A chat trace belongs to the run that started it.
+
+    Handles were scoped by `parent_run_id`; traces were keyed by
+    `(subagent_name, chat_trace_id)` with no owner, so one run could pass an id it
+    had seen and have the subagent replay another run's whole conversation.
+    """
+
+    def _seeded(self) -> Any:
+        toolset = _toolset()
+        toolset._compiled["worker"].agent = _HistoryRecordingAgent()
+        toolset._chat_traces.mark_active(("worker", "TRACE-A"), "run-a")
+        toolset._chat_traces.save(("worker", "TRACE-A"), ["run-a's private conversation"])
+        toolset._chat_traces.release(("worker", "TRACE-A"))
+        return toolset
+
+    async def _resume(self, toolset: Any, run_id: str | None) -> Any:
+        return await toolset.tools["task"].function(
+            Ctx(run_id=run_id),
+            "continue",
+            "worker",
+            "sync",
+            TaskPriority.NORMAL,
+            None,
+            False,
+            False,
+            "TRACE-A",
+        )
+
+    async def test_another_run_cannot_resume_a_trace(self) -> None:
+        toolset = self._seeded()
+
+        result = await self._resume(toolset, "run-b")
+
+        assert "no saved conversation for chat_trace_id 'TRACE-A'" in result
+        # The returned string alone is not enough: assert the history never
+        # reached the subagent.
+        assert toolset._compiled["worker"].agent.seen_history is _UNSET
+
+    async def test_a_foreign_active_trace_still_reads_as_unknown(self) -> None:
+        """The 'already has a running task' branch would confirm the id exists."""
+        toolset = self._seeded()
+        toolset._chat_traces.mark_active(("worker", "TRACE-A"), "run-a")
+
+        result = await self._resume(toolset, "run-b")
+
+        assert "no saved conversation" in result
+        assert "already has a running task" not in result
+
+    async def test_the_owning_run_still_resumes(self) -> None:
+        toolset = self._seeded()
+
+        result = await self._resume(toolset, "run-a")
+
+        assert "no saved conversation" not in result
+        assert toolset._compiled["worker"].agent.seen_history == ["run-a's private conversation"]
+
+    async def test_an_unclaimed_trace_stays_open(self) -> None:
+        """Matches `_handle_for`: state with no recorded owner is visible to all."""
+        toolset = _toolset()
+        toolset._compiled["worker"].agent = _HistoryRecordingAgent()
+        toolset._chat_traces.save(("worker", "TRACE-A"), ["no owner"])
+
+        result = await self._resume(toolset, "run-b")
+
+        assert "no saved conversation" not in result
+        assert toolset._compiled["worker"].agent.seen_history == ["no owner"]
+
+
+class TestChatTraceOwnership:
+    """Ownership bookkeeping in the store itself."""
+
+    def test_the_first_claim_wins(self) -> None:
+        store = ChatTraceStore(max_traces=10)
+
+        store.mark_active(("w", "t"), "run-a")
+        store.mark_active(("w", "t"), "run-b")
+
+        assert store.owned_by(("w", "t"), "run-a") is True
+        assert store.owned_by(("w", "t"), "run-b") is False
+
+    def test_a_trace_claimed_without_a_run_id_stays_open(self) -> None:
+        store = ChatTraceStore(max_traces=10)
+
+        store.mark_active(("w", "t"), None)
+
+        assert store.owned_by(("w", "t"), "anyone") is True
+
+    def test_releasing_an_unsaved_trace_drops_its_claim(self) -> None:
+        """A first run that failed saves nothing, so the id protects nothing."""
+        store = ChatTraceStore(max_traces=10)
+        store.mark_active(("w", "t"), "run-a")
+
+        store.release(("w", "t"))
+
+        assert store.owned_by(("w", "t"), "run-b") is True
+
+    def test_releasing_a_saved_trace_keeps_its_claim(self) -> None:
+        store = ChatTraceStore(max_traces=10)
+        store.mark_active(("w", "t"), "run-a")
+        store.save(("w", "t"), ["history"])
+
+        store.release(("w", "t"))
+
+        assert store.owned_by(("w", "t"), "run-b") is False
+
+    def test_eviction_drops_the_claim(self) -> None:
+        store = ChatTraceStore(max_traces=1)
+        store.mark_active(("w", "old"), "run-a")
+        store.save(("w", "old"), ["old"])
+        store.release(("w", "old"))
+
+        store.save(("w", "new"), ["new"])
+
+        assert ("w", "old") not in store
+        assert store.owned_by(("w", "old"), "run-b") is True
+
+    def test_eviction_keeps_the_claim_of_a_running_trace(self) -> None:
+        """A trace evicted mid-run is still live; `release` drops it afterwards."""
+        store = ChatTraceStore(max_traces=1)
+        store.mark_active(("w", "old"), "run-a")
+        store.save(("w", "old"), ["old"])
+
+        store.save(("w", "new"), ["new"])
+
+        assert store.owned_by(("w", "old"), "run-b") is False
+
+
+class TestWaitTasksIsolation:
+    """`wait_tasks` reported another run's task as missing and awaited it anyway.
+
+    The existing test used a handle with no `asyncio.Task` registered, which is the
+    same fixture that hid the cancel-tool defect: with nothing in
+    `task_manager.tasks` the await never happened, so the unscoped lookup that
+    built the pending list was never exercised.
+    """
+
+    async def test_does_not_await_another_runs_live_task(self) -> None:
+        toolset = _toolset()
+        block = asyncio.Event()
+        await _run_async(
+            agent=StubAgent(block=block),
+            config=_config(),
+            description="theirs",
+            deps=Deps(),
+            task_id="victim",
+            task_manager=toolset.task_manager,
+            message_bus=toolset.task_manager.message_bus,
+            parent_run_id="run-a",
+        )
+
+        started = asyncio.get_running_loop().time()
+        result = await toolset.tools["wait_tasks"].function(Ctx(run_id="run-b"), ["victim"], 5.0)
+        elapsed = asyncio.get_running_loop().time() - started
+
+        assert "- victim: not found" in result
+        # Timing is the assertion that matters: the old code blocked for the full
+        # timeout, which is also an existence oracle over foreign task ids.
+        assert elapsed < 1.0
+
+        block.set()
+        await asyncio.gather(*toolset.task_manager.tasks.values(), return_exceptions=True)
+
+    async def test_still_awaits_its_own_task(self) -> None:
+        toolset = _toolset()
+        block = asyncio.Event()
+        await _run_async(
+            agent=StubAgent(block=block),
+            config=_config(),
+            description="mine",
+            deps=Deps(),
+            task_id="mine",
+            task_manager=toolset.task_manager,
+            message_bus=toolset.task_manager.message_bus,
+            parent_run_id="run-a",
+        )
+
+        async def unblock() -> None:
+            await asyncio.sleep(0.05)
+            block.set()
+
+        asyncio.ensure_future(unblock())
+        result = await toolset.tools["wait_tasks"].function(Ctx(run_id="run-a"), ["mine"], 5.0)
+
+        assert "1/1 finished" in result
+        assert "COMPLETED" in result
+
+    async def test_a_missing_task_is_not_counted_as_running(self) -> None:
+        """The header said "1 still running" in the same breath as "not found"."""
+        toolset = _toolset()
+
+        result = await toolset.tools["wait_tasks"].function(Ctx(run_id="run-b"), ["nosuch"], 0.0)
+
+        assert result.startswith("Task results (mode=all, 0/1 finished, 1 not found):")
+        assert "still running" not in result
+
+    async def test_running_and_missing_are_counted_separately(self) -> None:
+        toolset = _toolset()
+        block = asyncio.Event()
+        await _run_async(
+            agent=StubAgent(block=block),
+            config=_config(),
+            description="mine",
+            deps=Deps(),
+            task_id="mine",
+            task_manager=toolset.task_manager,
+            message_bus=toolset.task_manager.message_bus,
+            parent_run_id="run-a",
+        )
+
+        result = await toolset.tools["wait_tasks"].function(
+            Ctx(run_id="run-a"), ["mine", "nosuch"], 0.0
+        )
+
+        assert "0/2 finished" in result
+        assert "1 still running" in result
+        assert "1 not found" in result
+
+        block.set()
+        await asyncio.gather(*toolset.task_manager.tasks.values(), return_exceptions=True)
+
+
+# --------------------------------------------------------------------------- #
+# Question contracts
+# --------------------------------------------------------------------------- #
+
+
+class TestCanAskQuestions:
+    """`can_ask_questions=False` has to remove the tool, not just discourage it.
+
+    The flag was honoured for runtime-injected specialists and ignored when
+    compiling a configured subagent, so a background task could park in
+    WAITING_FOR_ANSWER for the full `ask_timeout_seconds` while the parent's own
+    instructions said that subagent never asks.
+    """
+
+    def _tool_names(self, toolset: Any, name: str) -> list[str]:
+        agent = toolset._compiled[name].agent
+        return [
+            tool_name
+            for sub in agent.toolsets
+            for tool_name in getattr(sub, "tools", {})
+            if getattr(sub, "id", None) == "ask_parent"
+        ]
+
+    def test_a_quiet_subagent_has_no_ask_parent(self) -> None:
+        toolset = create_subagent_toolset(
+            subagents=[_config("quiet", can_ask_questions=False)],
+            include_general_purpose=False,
+            default_model=TestModel(),
+        )
+
+        assert self._tool_names(toolset, "quiet") == []
+
+    def test_a_talkative_subagent_keeps_ask_parent(self) -> None:
+        toolset = create_subagent_toolset(
+            subagents=[_config("chatty", can_ask_questions=True)],
+            include_general_purpose=False,
+            default_model=TestModel(),
+        )
+
+        assert self._tool_names(toolset, "chatty") == ["ask_parent"]
+
+    def test_the_default_keeps_ask_parent(self) -> None:
+        toolset = _toolset()
+
+        assert self._tool_names(toolset, "worker") == ["ask_parent"]
+
+    def test_a_quiet_subagent_keeps_its_own_toolsets(self) -> None:
+        """Dropping `ask_parent` must not drop the configured toolsets with it."""
+        extra: FunctionToolset[Any] = FunctionToolset(id="extra")
+        toolset = create_subagent_toolset(
+            subagents=[_config("quiet", can_ask_questions=False, toolsets=[extra])],
+            include_general_purpose=False,
+            default_model=TestModel(),
+        )
+
+        assert extra in toolset._compiled["quiet"].agent.toolsets
+
+
+class TestQuestionBudget:
+    """`max_questions` reached the subagent only as a sentence in its prompt.
+
+    A model that ignores it asks forever, and every unanswered question costs the
+    task up to `ask_timeout_seconds`.
+    """
+
+    def _ask_parent(self, toolset: Any, name: str = "asker") -> Any:
+        agent = toolset._compiled[name].agent
+        ask = next(t for t in agent.toolsets if getattr(t, "id", None) == "ask_parent")
+        return ask.tools["ask_parent"].function
+
+    def _toolset_with_budget(self, limit: int | None) -> Any:
+        extra: dict[str, Any] = {"max_questions": limit} if limit is not None else {}
+        return create_subagent_toolset(
+            subagents=[_config("asker", **extra)],
+            include_general_purpose=False,
+            default_model=TestModel(),
+            ask_user=self._answerer,
+        )
+
+    @staticmethod
+    async def _answerer(question: str) -> str:
+        return f"answer to {question}"
+
+    async def test_questions_past_the_limit_are_refused(self) -> None:
+        toolset = self._toolset_with_budget(2)
+        ask_parent = self._ask_parent(toolset)
+        state = SubAgentState(
+            ask_timeout_seconds=1.0,
+            ask_callback=self._answerer,
+            questions=QuestionBudget(limit=2),
+        )
+
+        with bind_subagent_state(state):
+            first = await ask_parent(Ctx(), "one?")
+            second = await ask_parent(Ctx(), "two?")
+            third = await ask_parent(Ctx(), "three?")
+
+        assert first == "answer to one?"
+        assert second == "answer to two?"
+        assert third == "Error: question limit reached (2 for this task). " + (
+            "Finish with the information you already have."
+        )
+
+    async def test_no_limit_means_unlimited(self) -> None:
+        toolset = self._toolset_with_budget(None)
+        ask_parent = self._ask_parent(toolset)
+        state = SubAgentState(ask_timeout_seconds=1.0, ask_callback=self._answerer)
+
+        with bind_subagent_state(state):
+            answers = [await ask_parent(Ctx(), f"q{i}?") for i in range(5)]
+
+        assert answers == [f"answer to q{i}?" for i in range(5)]
+
+    def test_the_budget_is_built_from_the_config(self) -> None:
+        assert _question_budget(_config("a", max_questions=3)) == QuestionBudget(limit=3)
+        assert _question_budget(_config("a")) is None
+
+    def test_consume_counts_and_stops(self) -> None:
+        budget = QuestionBudget(limit=1)
+
+        assert budget.consume() is True
+        assert budget.asked == 1
+        assert budget.consume() is False
+        assert budget.asked == 1
+
+    def test_an_unlimited_budget_never_refuses(self) -> None:
+        budget = QuestionBudget()
+
+        assert all(budget.consume() for _ in range(10))
+
+
+class _HistoryRecordingAgent:
+    """Records the `message_history` it was handed, so a leak is assertable."""
+
+    def __init__(self) -> None:
+        self.seen_history: Any = _UNSET
+
+    def iter(self, prompt: Any = None, **kwargs: Any) -> Any:
+        self.seen_history = kwargs.get("message_history")
+        return _CM(StubAgent())

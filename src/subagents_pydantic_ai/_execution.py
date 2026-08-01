@@ -49,7 +49,7 @@ from subagents_pydantic_ai._observability import (
     capture_observability,
     serialize_output,
 )
-from subagents_pydantic_ai._state import SubAgentState, bind_subagent_state
+from subagents_pydantic_ai._state import QuestionBudget, SubAgentState, bind_subagent_state
 from subagents_pydantic_ai.message_bus import InMemoryMessageBus, TaskManager
 from subagents_pydantic_ai.prompts import get_task_instructions_prompt
 from subagents_pydantic_ai.retry import OnRetryCallback, RetryConfig, run_with_retry
@@ -122,6 +122,17 @@ def _task_prompt(config: SubAgentConfig, description: str) -> str:
     )
 
 
+def _question_budget(config: SubAgentConfig) -> QuestionBudget | None:
+    """The delegation's `max_questions` budget, or `None` when it is unlimited.
+
+    One budget per delegation, so a subagent continuing a chat trace gets a fresh
+    allowance rather than inheriting a spent one -- `max_questions` is documented
+    per task, not per conversation.
+    """
+    limit = config.get("max_questions")
+    return QuestionBudget(limit=limit) if limit is not None else None
+
+
 async def _run_sync(
     agent: Any,
     config: SubAgentConfig,
@@ -174,7 +185,11 @@ async def _run_sync(
         message_history=message_history,
         conversation_id=handle.chat_trace_id if handle is not None else None,
     )
-    state = SubAgentState(ask_timeout_seconds=ask_timeout_seconds, ask_callback=ask_user)
+    state = SubAgentState(
+        ask_timeout_seconds=ask_timeout_seconds,
+        ask_callback=ask_user,
+        questions=_question_budget(config),
+    )
 
     try:
         with bind_subagent_state(state):
@@ -330,6 +345,7 @@ async def _run_async(
         ask_timeout_seconds=ask_timeout_seconds,
         task_manager=task_manager,
         task_id=task_id,
+        questions=_question_budget(config),
     )
 
     async def run_task() -> None:

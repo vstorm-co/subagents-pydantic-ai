@@ -64,6 +64,12 @@ A trace belongs to one subagent and one task at a time.
 - **Only successful runs are stored.** A failed first run saves nothing, so its id
   would resume an empty conversation. Neither the result text nor `check_task`
   advertises a trace in that case.
+- **One run only.** A trace belongs to the run that started it, the same way a task
+  handle does. One toolset instance serves every run of its agent, and a trace
+  holds a whole subagent conversation, so a trace from another run reads exactly
+  like an unknown one — including while its task is still running, so the error
+  cannot be used to probe which ids exist. A trace created without a `run_id`
+  stays continuable by anyone.
 
 ## Where history lives
 

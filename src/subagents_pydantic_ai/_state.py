@@ -25,6 +25,31 @@ if TYPE_CHECKING:
     from subagents_pydantic_ai.message_bus import TaskManager
 
 
+@dataclass(slots=True)
+class QuestionBudget:
+    """How many more times this delegation may call `ask_parent`.
+
+    `max_questions` used to reach the subagent only as a sentence in its prompt,
+    which a model is free to ignore -- and every ignored question costs the task up
+    to `ask_timeout_seconds`. The counter makes the documented limit real. It is
+    mutable and per-delegation, so it lives here rather than on the config.
+
+    Attributes:
+        limit: Maximum questions allowed, or `None` for unlimited.
+        asked: Questions already spent.
+    """
+
+    limit: int | None = None
+    asked: int = 0
+
+    def consume(self) -> bool:
+        """Spend one question, returning whether it was within the limit."""
+        if self.limit is not None and self.asked >= self.limit:
+            return False
+        self.asked += 1
+        return True
+
+
 @dataclass(frozen=True, slots=True)
 class SubAgentState:
     """How the subagent currently being run can reach its parent.
@@ -40,12 +65,14 @@ class SubAgentState:
         task_id: Async mode. Identifies this delegation in `task_manager`.
         ask_timeout_seconds: How long `ask_parent` waits for the parent's answer
             before giving up and telling the subagent to proceed on its own.
+        questions: This delegation's `max_questions` budget, when one is set.
     """
 
     ask_timeout_seconds: float
     ask_callback: AskUserCallback | None = None
     task_manager: TaskManager | None = None
     task_id: str | None = None
+    questions: QuestionBudget | None = None
 
 
 _SUBAGENT_STATE: ContextVar[SubAgentState | None] = ContextVar(

@@ -191,7 +191,14 @@ def _compile_subagent(
             config=config,
         )
 
-    toolsets: list[AbstractToolset[Any]] = [_create_ask_parent_toolset()]
+    # `can_ask_questions=False` has to remove the tool, not just tell the subagent
+    # not to use it. `_execute` already honours the flag when it injects
+    # `ask_parent` at run time; leaving it out here meant a configured subagent
+    # could still park a background task in WAITING_FOR_ANSWER for the full
+    # `ask_timeout_seconds` while the parent's own instructions said it never asks.
+    toolsets: list[AbstractToolset[Any]] = []
+    if config.get("can_ask_questions", True):
+        toolsets.append(_create_ask_parent_toolset())
     toolsets.extend(config.get("toolsets") or [])
 
     agent: Agent[Any, str] = Agent(
@@ -241,6 +248,16 @@ def _create_ask_parent_toolset() -> FunctionToolset[Any]:
             ask_callback = ask_callback or legacy.get("ask_callback")
             task_manager = task_manager or legacy.get("task_manager")
             task_id = task_id or legacy.get("task_id")
+
+        budget = state.questions if state is not None else None
+        if budget is not None and not budget.consume():
+            # Spent before dispatch, so the limit also caps the no-channel case --
+            # a subagent looping on a configuration error is the loop that
+            # `max_questions` is documented to prevent.
+            return (
+                f"Error: question limit reached ({budget.limit} for this task). "
+                "Finish with the information you already have."
+            )
 
         if ask_callback is not None:
             return str(await ask_callback(question))
@@ -716,6 +733,16 @@ class SubAgentToolset(FunctionToolset[Any]):
         effective_chat_trace_id = chat_trace_id or uuid.uuid4().hex
         trace_key: ChatTraceKey = (config["name"], effective_chat_trace_id)
 
+        unknown_trace = (
+            f"Error: no saved conversation for chat_trace_id '{chat_trace_id}' "
+            f"with subagent '{config['name']}' (unknown, evicted, or its first "
+            f"run failed). Omit chat_trace_id to start a new conversation."
+        )
+        # A trace owned by another run has to read exactly like an unknown one, and
+        # be refused before the "already running" branch below -- that branch would
+        # otherwise confirm the id exists.
+        if not self._chat_traces.owned_by(trace_key, ctx.run_id):
+            return unknown_trace
         if self._chat_traces.is_active(trace_key):
             return (
                 f"Error: chat trace '{effective_chat_trace_id}' already has a running "
@@ -724,11 +751,7 @@ class SubAgentToolset(FunctionToolset[Any]):
             )
         message_history = self._chat_traces.history_for(trace_key)
         if message_history is None and chat_trace_id is not None:
-            return (
-                f"Error: no saved conversation for chat_trace_id '{chat_trace_id}' "
-                f"with subagent '{config['name']}' (unknown, evicted, or its first "
-                f"run failed). Omit chat_trace_id to start a new conversation."
-            )
+            return unknown_trace
 
         def save_message_history(messages: list[Any]) -> None:
             self._chat_traces.save(trace_key, messages)
@@ -764,7 +787,7 @@ class SubAgentToolset(FunctionToolset[Any]):
                 parent_run_id=ctx.run_id,
             )
             self.task_manager.handles[actual_task_id] = handle
-            self._chat_traces.mark_active(trace_key)
+            self._chat_traces.mark_active(trace_key, ctx.run_id)
             try:
                 result = await _run_sync(
                     agent=agent,
@@ -791,7 +814,7 @@ class SubAgentToolset(FunctionToolset[Any]):
                 return _format_chat_trace_result(result, effective_chat_trace_id)
             return result
 
-        self._chat_traces.mark_active(trace_key)
+        self._chat_traces.mark_active(trace_key, ctx.run_id)
         try:
             return await _run_async(
                 agent=agent,
@@ -907,8 +930,17 @@ class SubAgentToolset(FunctionToolset[Any]):
             subagent = registry_subagent
             inject_ask_parent = True
         else:
-            available = ", ".join([*self._compiled, *self.registry.list_agents()])
-            return f"Error: Unknown subagent '{subagent_type}'. Available: {available}"
+            # Only the configured subagents are named. The registry is shared by
+            # every run of this agent, and `create_agent` names are model-authored
+            # and describe the work ("invoice-parser-acme"), so enumerating them
+            # told one tenant what the others were doing.
+            available = ", ".join(self._compiled) or "none"
+            hint = (
+                " Agents created with create_agent are also addressable by their name."
+                if self.registry.count()
+                else ""
+            )
+            return f"Error: Unknown subagent '{subagent_type}'. Available: {available}.{hint}"
 
         return await self._execute(
             ctx,
@@ -1131,10 +1163,16 @@ class SubAgentToolset(FunctionToolset[Any]):
                 can react to the first finisher without stalling on the
                 slowest one.
         """
+        # Scoped the same way the reporting below is. An unscoped await let one run
+        # block for the full `timeout` on another run's task -- and the difference
+        # between that and an id that does not exist is an existence oracle, since
+        # both render as "not found".
         pending = [
             task
             for tid in task_ids
-            if (task := self.task_manager.tasks.get(tid)) is not None and not task.done()
+            if self._handle_for(ctx, tid) is not None
+            and (task := self.task_manager.tasks.get(tid)) is not None
+            and not task.done()
         ]
         if pending:
             # Both modes route through `asyncio.wait`. Unlike
@@ -1148,9 +1186,11 @@ class SubAgentToolset(FunctionToolset[Any]):
 
         lines: list[str] = []
         finished_count = 0
+        missing_count = 0
         for tid in task_ids:
             handle = self._handle_for(ctx, tid)
             if handle is None:
+                missing_count += 1
                 lines.append(f"- {tid}: not found")
                 continue
             if handle.status == TaskStatus.COMPLETED:
@@ -1173,8 +1213,15 @@ class SubAgentToolset(FunctionToolset[Any]):
 
         total = len(task_ids)
         header_parts = [f"mode={mode}", f"{finished_count}/{total} finished"]
-        if total - finished_count > 0:
-            header_parts.append(f"{total - finished_count} still running")
+        # A missing id is neither finished nor running. Folding it into the running
+        # count told the orchestrator, in the same message that said "not found",
+        # that the task was still going -- so it kept polling an id that never
+        # resolves.
+        running = total - finished_count - missing_count
+        if running > 0:
+            header_parts.append(f"{running} still running")
+        if missing_count > 0:
+            header_parts.append(f"{missing_count} not found")
 
         return f"Task results ({', '.join(header_parts)}):\n" + "\n\n".join(lines)
 

@@ -23,24 +23,50 @@ class ChatTraceStore:
     A trace must finish before it can be continued. Two concurrent tasks on one
     trace would both save at the end, and the slower save would silently discard
     the faster one's history.
+
+    A trace also belongs to the run that started it. One toolset instance serves
+    every run of its agent, and a trace holds a whole subagent conversation, so an
+    unscoped lookup let one run replay another run's history into its own subagent
+    by passing an id it had seen. Ownership mirrors `_handle_for`: a trace claimed
+    without a `run_id` stays continuable by everyone.
     """
 
     def __init__(self, max_traces: int) -> None:
         self.history: OrderedDict[ChatTraceKey, list[Any]] = OrderedDict()
         self._max_traces = max_traces
         self._active: set[ChatTraceKey] = set()
+        self._owners: dict[ChatTraceKey, str] = {}
 
     def is_active(self, key: ChatTraceKey) -> bool:
         """Whether a task is currently running on this trace."""
         return key in self._active
 
-    def mark_active(self, key: ChatTraceKey) -> None:
-        """Claim the trace for a task that is about to start."""
+    def owned_by(self, key: ChatTraceKey, run_id: str | None) -> bool:
+        """Whether `run_id` may read this trace. Unclaimed traces are open."""
+        owner = self._owners.get(key)
+        return owner is None or owner == run_id
+
+    def mark_active(self, key: ChatTraceKey, run_id: str | None = None) -> None:
+        """Claim the trace for a task that is about to start.
+
+        Ownership is recorded here rather than on `save`, so a trace whose first run
+        is still in flight is already protected. Taking `run_id` on the same call
+        that marks the trace busy is what stops a new caller forgetting one of them.
+        """
         self._active.add(key)
+        if run_id is not None:
+            self._owners.setdefault(key, run_id)
 
     def release(self, key: ChatTraceKey) -> None:
-        """Release the trace once its task has finished."""
+        """Release the trace once its task has finished.
+
+        A trace that never saved a history has nothing left to protect -- its first
+        run failed -- so the ownership record goes with it rather than pinning an id
+        no one can use.
+        """
         self._active.discard(key)
+        if key not in self.history:
+            self._owners.pop(key, None)
 
     def __contains__(self, key: ChatTraceKey) -> bool:
         return key in self.history
@@ -61,4 +87,8 @@ class ChatTraceStore:
         self.history[key] = messages
         self.history.move_to_end(key)
         while len(self.history) > self._max_traces:
-            self.history.popitem(last=False)
+            evicted, _ = self.history.popitem(last=False)
+            # An evicted trace is unreachable, so its owner record would only leak.
+            # A trace evicted mid-run keeps its claim until `release` drops it.
+            if evicted not in self._active:
+                self._owners.pop(evicted, None)

@@ -131,8 +131,9 @@ CHECK_TASK_DESCRIPTION = """\
 Check the status of a background (async) task and get its result if completed.
 
 Use this after launching async tasks to see if they're done. Returns the \
-task status (running, completed, failed, waiting_for_answer) and the result \
-if available. The result is always returned in full, so call this when a \
+task's current status, plus its result when completed, its error when failed, \
+its pending question when waiting for an answer, and why it stopped when \
+cancelled. The result is always returned in full, so call this when a \
 `wait_tasks` listing showed a truncated one."""
 
 ANSWER_SUBAGENT_DESCRIPTION = """\

@@ -29,8 +29,8 @@ subagent = SubAgentConfig(
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `model` | `str` | Parent's model | LLM model to use |
-| `can_ask_questions` | `bool` | `True` | Enable `ask_parent` tool |
-| `max_questions` | `int` | `None` (unlimited) | Max questions per task |
+| `can_ask_questions` | `bool` | `True` | Attach the `ask_parent` tool; `False` removes it |
+| `max_questions` | `int` | `None` (unlimited) | Enforced cap on `ask_parent` calls per delegation |
 | `preferred_mode` | `str` | `"auto"` | `"sync"`, `"async"`, or `"auto"` |
 | `typical_complexity` | `str` | `"moderate"` | `"simple"`, `"moderate"`, or `"complex"` |
 | `typically_needs_context` | `bool` | `False` | Hint for auto-mode selection |

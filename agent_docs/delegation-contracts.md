@@ -46,8 +46,27 @@ serves. Handles record `parent_run_id`, and `_handle_for` refuses ids from anoth
 run. Any new tool that takes a `task_id` must go through it; a direct
 `task_manager.get_handle` lookup reintroduces cross-run access.
 
+Scoping the *output* is not enough. `wait_tasks` filtered its listing correctly and
+built the set it awaited straight off `task_manager.tasks`, so a foreign id still
+blocked the caller for the full timeout -- which is also an existence oracle,
+because a genuinely unknown id returns instantly. Anything that waits on, cancels,
+or otherwise touches a task must be scoped, not only what gets rendered.
+
 `TaskManager.handles` stays globally readable on purpose -- external monitoring
 depends on it.
+
+## Chat traces are scoped the same way
+
+`ChatTraceStore` records the run that first claimed a trace (`mark_active`), and
+`owned_by` gates the lookup in `_execute`. A trace holds a whole subagent
+conversation, so an unscoped `chat_trace_id` was a cross-run read, not just a
+cross-run reference. The ownership check runs *before* the "already has a running
+task" branch, so that branch cannot confirm a foreign id exists. A trace claimed
+without a `run_id` stays open, matching `_handle_for`.
+
+The registry behind `create_agent` is deliberately **not** scoped -- a persistent
+agent is meant to outlive one run. The unknown-subagent error still must not
+enumerate it: those names are model-authored and describe the work.
 
 ## Terminal transitions are idempotent
 

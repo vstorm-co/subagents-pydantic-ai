@@ -1333,11 +1333,12 @@ wheels = [
 
 [[package]]
 name = "subagents-pydantic-ai"
-version = "0.2.13"
+version = "0.2.14"
 source = { editable = "." }
 dependencies = [
     { name = "pydantic" },
     { name = "pydantic-ai-slim" },
+    { name = "typing-extensions" },
 ]
 
 [package.dev-dependencies]
@@ -1364,6 +1365,7 @@ docs = [
 requires-dist = [
     { name = "pydantic", specifier = ">=2.0" },
     { name = "pydantic-ai-slim", specifier = ">=2.0.0" },
+    { name = "typing-extensions", specifier = ">=4.15.0" },
 ]
 
 [package.metadata.requires-dev]

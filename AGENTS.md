@@ -53,9 +53,10 @@ has its own sub-agent capability worth comparing against.
 ## Coding standards
 
 - Python 3.10+, supported through 3.13.
-- **pyright strict** and **mypy strict**, over `src/` and `tests/`. No
-  `# type: ignore` in `src/`. The per-rule exemptions in `pyproject.toml` each carry
-  a comment saying why.
+- **pyright strict** and **mypy strict**, over `src/` and `tests/`. Exactly one
+  `# type: ignore` in `src/` (`spec.py`, writing a dynamic `TypedDict` key) -- adding
+  a second needs a reason in review. The per-rule exemptions in `pyproject.toml`
+  each carry a comment saying why.
 - **ruff**: line-length 100, double quotes, `max-complexity = 15`, no per-function
   `noqa`. If a function trips the ceiling, split it.
 - **100% branch coverage** is the merge gate. Coverage is necessary, not

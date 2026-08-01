@@ -5,6 +5,69 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.14] - 2026-08-01
+
+A re-audit of 0.2.13, verifying each of that release's fixes and then sweeping the
+areas the audit behind it had listed as uncovered. The fixes in 0.2.13 were all
+correct; they had been applied to the sites the report named rather than to the
+class of defect, and the class was still open elsewhere.
+
+Three entries change observable behaviour, in each case to match what the docs
+already promised: `can_ask_questions=False` now removes `ask_parent`,
+`max_questions` is enforced, and a `chat_trace_id` from another run is refused.
+Code relying on the old behaviour was relying on a defect, but it is worth knowing
+about before upgrading.
+
+### Fixed
+
+- **`can_ask_questions=False` did not disable `ask_parent`.** The flag was honoured
+  when `_execute` injects the tool for a runtime specialist and ignored when
+  `_compile_subagent` builds a configured subagent, so the tool was attached
+  regardless. In background mode that is a stall, not a cosmetic issue: the
+  subagent parks the task in `WAITING_FOR_ANSWER` for the full
+  `ask_timeout_seconds` (300 s by default) while the parent's own instructions
+  describe that subagent as one that *cannot ask clarifying questions*, so nothing
+  ever calls `answer_subagent`. The tool is now attached only when the flag allows
+  it.
+- **Any run could resume any other run's chat trace.** Task handles record
+  `parent_run_id` and every tool that takes a `task_id` is scoped, but traces were
+  keyed by `(subagent_name, chat_trace_id)` with no owner at all — so a run passing
+  an id it had seen got the other run's whole conversation replayed into its
+  subagent's `message_history`. `ChatTraceStore` now records the claiming run, and a
+  foreign trace reads exactly like an unknown one. The check runs before the
+  "already has a running task" branch, which would otherwise confirm the id exists.
+  A trace claimed without a `run_id` stays open, matching `_handle_for`.
+- **`wait_tasks` awaited another run's live task.** It filtered its listing through
+  `_handle_for` and built the set it awaited from `task_manager.tasks` directly, so
+  a foreign id blocked the caller for the whole `timeout` and then reported "not
+  found". The wall-clock difference against a genuinely unknown id (which returns
+  instantly) was an existence oracle over foreign task ids. The isolation test
+  missed it for the same reason the 0.2.13 cancel defect shipped: its fixture
+  registers a handle with no `asyncio.Task`, so the await never happened.
+- **The unknown-subagent error enumerated every run's dynamic agents.** One registry
+  is shared by every run of an agent, and `create_agent` names are model-authored
+  and describe the work, so the list told one tenant what the others were doing. The
+  error names the configured subagents and says dynamic agents exist without naming
+  them. The registry itself stays shared — a persistent agent is meant to outlive
+  one run.
+- **`wait_tasks` counted a missing task as still running.** `still running` was
+  `total - finished`, so the same message said `not found` and `1 still running`
+  about one id and the orchestrator kept polling something that will never resolve.
+  Missing ids are now counted and reported separately.
+- **`max_questions` was prompt text, documented as a limit.** It reached the
+  subagent only as a sentence in its task prompt, which a model is free to ignore —
+  and each ignored question costs up to `ask_timeout_seconds`. It is now a counter
+  on the delegation: past the limit, `ask_parent` returns immediately without
+  waiting for the parent. The budget is per delegation, so a task continuing a chat
+  trace gets a full allowance.
+- **`check_task`'s tool description named four of seven statuses.** 0.2.13 added the
+  `cancelled` and `retrying` renderings without updating the description that
+  enumerated the statuses a model should expect. It now describes what each terminal
+  state returns instead of listing values that drift.
+- **`typing-extensions` was imported but not declared.** `types.py` imports it at
+  module scope for `NotRequired`/`TypedDict`; it was only present transitively via
+  `pydantic`. Now a direct dependency.
+
 ## [0.2.13] - 2026-08-01
 
 Findings from a full-repo audit. Every defect here sat in a place the tooling

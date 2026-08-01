@@ -594,8 +594,14 @@ class TestCreateSubagentToolset:
             assert "Unknown subagent" in result
 
     @pytest.mark.asyncio
-    async def test_task_unknown_subagent_with_registry(self):
-        """Test task with unknown subagent includes registry agents in error."""
+    async def test_task_unknown_subagent_does_not_enumerate_the_registry(self):
+        """The unknown-subagent error once listed every run's dynamic agents.
+
+        One registry is shared by every run of the agent, and `create_agent` names
+        are model-authored and describe the work, so enumerating them told one
+        tenant what the others were doing. The error names the configured subagents
+        and says dynamic agents exist without naming them.
+        """
         config = SubAgentConfig(
             name="helper",
             description="Helps",
@@ -604,6 +610,7 @@ class TestCreateSubagentToolset:
         registry = MagicMock()
         registry.get_compiled.return_value = None
         registry.list_agents.return_value = ["dynamic-agent"]
+        registry.count.return_value = 1
 
         with patch(
             "subagents_pydantic_ai.toolset._compile_subagent",
@@ -621,7 +628,46 @@ class TestCreateSubagentToolset:
             result = await task_tool.function(ctx, "do something", "nonexistent", "sync")
 
             assert "Unknown subagent" in result
-            assert "dynamic-agent" in result
+            assert "helper" in result
+            assert "dynamic-agent" not in result
+            assert "create_agent" in result
+
+    @pytest.mark.asyncio
+    async def test_task_unknown_subagent_without_registry_agents(self):
+        """With an empty registry the error offers no dynamic-agent hint."""
+        config = SubAgentConfig(name="helper", description="Helps", instructions="Help")
+        registry = MagicMock()
+        registry.get_compiled.return_value = None
+        registry.count.return_value = 0
+
+        with patch(
+            "subagents_pydantic_ai.toolset._compile_subagent",
+            return_value=_make_mock_compiled_subagent(config),
+        ):
+            toolset = create_subagent_toolset(
+                subagents=[config],
+                include_general_purpose=False,
+                registry=registry,
+            )
+
+            ctx = MockRunContext(deps=MockDeps())
+            result = await toolset.tools["task"].function(ctx, "do", "nonexistent", "sync")
+
+            assert result == "Error: Unknown subagent 'nonexistent'. Available: helper."
+
+    @pytest.mark.asyncio
+    async def test_task_unknown_subagent_with_no_configured_subagents(self):
+        """An empty list must not render as an empty word after 'Available:'."""
+        toolset = create_subagent_toolset(
+            subagents=None,
+            include_general_purpose=False,
+            default_model=TestModel(),
+        )
+
+        ctx = MockRunContext(deps=MockDeps())
+        result = await toolset.tools["task"].function(ctx, "do", "nonexistent", "sync")
+
+        assert result == "Error: Unknown subagent 'nonexistent'. Available: none."
 
     @pytest.mark.asyncio
     async def test_task_resolved_via_registry(self):
