@@ -11,6 +11,12 @@ on:
 env:
   COLUMNS: 150
 
+# Least privilege for every job below: this workflow only reads the checkout.
+# Without it each job inherits the repository default, which can be write, and
+# an action compromised anywhere in the matrix would inherit it too.
+permissions:
+  contents: read
+
 jobs:
   lint:
     name: Lint

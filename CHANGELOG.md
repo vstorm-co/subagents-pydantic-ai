@@ -5,6 +5,43 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.16] - 2026-08-03
+
+Security housekeeping. **Nothing in the published package changes**: all five
+advisories are against development and documentation dependencies -- `pytest`,
+`requests`, `urllib3`, `pygments`, `pymdown-extensions` -- none of which this
+library depends on at run time. Its runtime dependencies are still `pydantic`,
+`pydantic-ai-slim` and `typing-extensions`. The exposure was this repository's CI
+and a maintainer's docs build, not anybody's install.
+
+### Security
+
+- **`urllib3` 2.6.3 -> 2.7.0**, closing two high-severity advisories:
+  decompression-bomb safeguards bypassed in parts of the streaming API, and
+  sensitive headers forwarded across origins in proxied low-level redirects.
+- **`pymdown-extensions` 10.20 -> 11.0.1**, closing two: path traversal in the
+  `b64` extension letting `<img src>` read files outside `base_path`, and a
+  regression reintroducing the sibling-prefix traversal bypass in
+  `pymdownx.snippets` despite `restrict_base_path`. A major bump, so the docs
+  build was checked for rendered output rather than just an exit code -- the
+  changelog page is a `pymdownx.snippets` include of `CHANGELOG.md` from outside
+  `docs/`, which is exactly what the second advisory tightened.
+- **`requests` 2.32.5 -> 2.34.2**, closing insecure temporary-file reuse in
+  `extract_zipped_paths()`.
+- **`pytest` 9.0.2 -> 9.1.1**, closing vulnerable `tmpdir` handling.
+- **`pygments` 2.19.2 -> 2.20.0**, closing a ReDoS in the GUID-matching regex.
+- **`.github/workflows/ci.yml` declares `permissions: contents: read`.** It had no
+  permissions block at all, so all four of its jobs inherited the repository
+  default -- which can be write -- and an action compromised anywhere in the test
+  matrix would have inherited it too. Four CodeQL `actions/missing-workflow-permissions`
+  alerts, closed by one top-level block. The other three workflows already
+  declared theirs.
+
+Version constraints in `pyproject.toml` are deliberately unchanged: CI installs
+from the lockfile, which is what both Dependabot and Renovate patch, and raising
+a floor for a transitive dependency states a fact about a resolution rather than
+about this package.
+
 ## [0.2.15] - 2026-08-02
 
 Three defects found integrating the library into a platform where every agent is
