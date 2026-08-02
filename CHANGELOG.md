@@ -5,13 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.3.0] - 2026-08-02
+## [0.2.15] - 2026-08-02
 
 Three defects found integrating the library into a platform where every agent is
 built with `output_type=[str, DeferredToolRequests]`, which made the first one the
 default path rather than an edge case.
 
-The minor bump is for the status change: a suspended delegation now reports
+One entry changes observable behaviour: a suspended delegation now reports
 `deferred` where it used to report `completed` (a real defect) or `failed` (an
 honest but wrong label). Code branching on `TaskStatus.FAILED` to detect a
 human-in-the-loop delegation needs updating.
