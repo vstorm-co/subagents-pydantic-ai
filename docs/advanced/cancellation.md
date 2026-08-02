@@ -177,6 +177,34 @@ If cancelled, return:
 """
 ```
 
+## When the parent run ends
+
+`SubAgentCapability` cancels every background task the run started, in a
+finalizer, so nothing outlives its parent: a delegation still working against
+deps the application has torn down is a bug, and one blocked in `ask_parent`
+waits for an answer that can never arrive.
+
+That cleanup waits for each cancelled task to unwind, but **only up to
+`cancel_grace_seconds`** (5 s by default). The bound matters because the wait
+happens in a `finally`. A `CancelledError` can be caught, and a subagent's
+toolset is arbitrary code -- an HTTP client with its own shield, a slow cleanup,
+a `contextlib.suppress` a little too wide. An unbounded wait on one of those
+never returns, so the parent run's teardown never returns either, and the
+application hangs with nothing logged.
+
+A task still alive after the grace period is logged with its task id and left to
+the event loop. A leaked task that is reported is recoverable; a `finally` that
+never finishes is not.
+
+```python
+SubAgentCapability(subagents=subagents, cancel_grace_seconds=30.0)
+```
+
+Raise it when subagents do real cleanup on the way out; lower it when a fast
+shutdown matters more than a graceful one. The guarantee either way is that every
+task is cancelled -- the setting only changes how long the parent waits to watch
+it happen.
+
 ## Next Steps
 
 - [Dynamic Agents](dynamic-agents.md) - Runtime agent creation

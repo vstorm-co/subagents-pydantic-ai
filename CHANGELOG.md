@@ -5,6 +5,76 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-08-02
+
+Three defects found integrating the library into a platform where every agent is
+built with `output_type=[str, DeferredToolRequests]`, which made the first one the
+default path rather than an edge case.
+
+The minor bump is for the status change: a suspended delegation now reports
+`deferred` where it used to report `completed` (a real defect) or `failed` (an
+honest but wrong label). Code branching on `TaskStatus.FAILED` to detect a
+human-in-the-loop delegation needs updating.
+
+### Fixed
+
+- **A suspended subagent was reported to the parent as a completed task.**
+  `_ALWAYS_PROPAGATE` guards the exception route, but an agent whose `output_type`
+  includes `DeferredToolRequests` never raises: pydantic-ai ends its run normally
+  with the parked calls as the output, exactly as it does for a top-level run a
+  caller is expected to resume. That reached `serialize_output`, so the parent
+  agent received `{"calls": [], "approvals": [...]}` as the specialist's answer,
+  summarised it, and carried on -- with `handle.status` saying `completed` and the
+  approval surfaced nowhere. It is the outcome the module docstring says the
+  design prevents, arriving by the output instead of the exception. A deferred
+  output is now the fifth entry in the error contract: the handle is marked
+  `DEFERRED`, the parked calls are kept on `TaskHandle.deferred_requests`, and the
+  matching signal is raised (`ApprovalRequired` when anything needs approving,
+  `CallDeferred` otherwise) so the parent run suspends too. The suspended run's
+  chat trace is deliberately not saved -- continuing it would resume from a point
+  whose deferred results were never supplied.
+- **`cancel_all` waited on cancelled tasks without a bound, inside a `finally`.**
+  `SubAgentCapability.wrap_run` calls it when a run ends, and it awaited each
+  cancelled task indefinitely. A `CancelledError` can be caught, and a subagent's
+  toolset is arbitrary consumer code, so one task that swallowed the cancel held
+  the parent run's teardown open forever with nothing logged. The wait is now
+  bounded by `cancel_grace_seconds` (5 s by default, configurable on
+  `TaskManager`, `create_subagent_toolset` and `SubAgentCapability`); a task still
+  alive after it is logged with its task id and left to the event loop. The
+  suppression around the wait is also no longer able to hide an *outer*
+  cancellation for longer than the grace period, which is the case that matters:
+  the parent is usually being cancelled from outside when this runs.
+
+### Added
+
+- **`event_stream_handler` on `create_subagent_toolset` and `SubAgentCapability`.**
+  Streaming a delegation was possible but only by setting the handler on each
+  agent instance -- which a dynamically created specialist does not have, since the
+  library builds it, making "stream subagents" and "let the model create
+  specialists" quietly incompatible. The handler is now resolved per delegation,
+  so both work together. An agent supplied as `SubAgentConfig["agent"]` keeps its
+  own handler: the specific choice wins, and the toolset's is the default for
+  everything else.
+- **`event_stream_handler_factory`**, resolved per delegation from the parent run
+  context, the subagent config and the task id. The task id is the argument that
+  makes a fan-out readable -- three specialists streaming into one callback are
+  otherwise indistinguishable. Mutually exclusive with `event_stream_handler`,
+  which is refused at construction: both are callables, so nothing downstream
+  could tell them apart.
+- **`TaskStatus.DEFERRED`** and **`TaskHandle.deferred_requests`**, and
+  `DEFERRED` joins `TERMINAL_STATUSES`.
+- **`docs/advanced/streaming.md`**, which is also the first documentation that
+  streaming a subagent is possible at all.
+
+### Changed
+
+- **A human-in-the-loop delegation reports `DEFERRED`, not `FAILED`.** Both the
+  sync route (where the signal propagates) and the background route (where it
+  cannot be delivered) previously recorded `FAILED`, sending a caller looking for
+  a defect when what the delegation needs is a person to decide. The background
+  message is unchanged and still tells the model to delegate with `mode="sync"`.
+  `UserError` and the `Skip*` signals still record `FAILED`.
+
 ## [0.2.14] - 2026-08-01
 
 A re-audit of 0.2.13, verifying each of that release's fixes and then sweeping the

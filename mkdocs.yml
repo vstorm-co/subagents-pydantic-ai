@@ -166,6 +166,7 @@ nav:
     - advanced/steering.md
     - advanced/chat-traces.md
     - advanced/cancellation.md
+    - advanced/streaming.md
     - advanced/errors.md
     - advanced/retries.md
     - advanced/usage-limits.md

@@ -9,6 +9,7 @@ subagents within pydantic-ai agents. It supports:
 - **Questions**: a subagent can ask its parent for clarification mid-task
 - **Steering**: redirect a running background task without losing its progress
 - **Cancellation**: cooperative (stops at a clean boundary) or immediate
+- **Streaming**: a delegation's events as they happen, labelled by task
 - **Retries**: transient model/gateway failures resume from accumulated history
 - **Observability**: per-task usage, cost, tool-call counts, and traceparent
 - **Dynamic agents**: create specialists at runtime, reusable or one-shot
@@ -40,6 +41,9 @@ from subagents_pydantic_ai.dynamic_agent import (
 )
 from subagents_pydantic_ai.factory import (
     create_agent_factory_toolset as create_agent_factory_toolset,
+)
+from subagents_pydantic_ai.message_bus import (
+    DEFAULT_CANCEL_GRACE_SECONDS as DEFAULT_CANCEL_GRACE_SECONDS,
 )
 from subagents_pydantic_ai.message_bus import (
     InMemoryMessageBus as InMemoryMessageBus,
@@ -135,6 +139,9 @@ from subagents_pydantic_ai.types import (
     DelegationConfiguration as DelegationConfiguration,
 )
 from subagents_pydantic_ai.types import (
+    EventStreamHandlerFactory as EventStreamHandlerFactory,
+)
+from subagents_pydantic_ai.types import (
     ExecutionMode as ExecutionMode,
 )
 from subagents_pydantic_ai.types import (
@@ -186,6 +193,7 @@ __all__ = [
     "TaskCharacteristics",
     "ExecutionMode",
     "DelegationConfiguration",
+    "EventStreamHandlerFactory",
     "ToolsetFactory",
     "AgentFactory",
     "UsageLimitsFactory",
@@ -202,6 +210,7 @@ __all__ = [
     "InMemoryMessageBus",
     "create_message_bus",
     "TaskManager",
+    "DEFAULT_CANCEL_GRACE_SECONDS",
     # Registry
     "DynamicAgentRegistry",
     # Retry

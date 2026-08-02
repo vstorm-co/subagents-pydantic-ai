@@ -29,19 +29,20 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from pydantic_ai import RunContext, UsageLimits
-from pydantic_ai.agent import AgentRunResult
+from pydantic_ai.agent import AgentRunResult, EventStreamHandler
 from pydantic_ai.capabilities import AbstractCapability, WrapRunHandler
 from pydantic_ai.toolsets import AbstractToolset
 
 from subagents_pydantic_ai._execution import DEFAULT_ASK_TIMEOUT_SECONDS
 from subagents_pydantic_ai.dynamic_agent import AgentFactory, CapabilityFactory
-from subagents_pydantic_ai.message_bus import TaskManager
+from subagents_pydantic_ai.message_bus import DEFAULT_CANCEL_GRACE_SECONDS, TaskManager
 from subagents_pydantic_ai.prompts import get_subagent_system_prompt
 from subagents_pydantic_ai.registry import DynamicAgentRegistry
 from subagents_pydantic_ai.toolset import SubAgentToolset, create_subagent_toolset
 from subagents_pydantic_ai.types import (
     AskUserCallback,
     DelegationConfiguration,
+    EventStreamHandlerFactory,
     SubAgentConfig,
     ToolsetFactory,
     UsageLimitsFactory,
@@ -105,12 +106,22 @@ class SubAgentCapability(AbstractCapability[Any]):
         ask_user: Callback backing `ask_parent`. Required for a sync-mode subagent
             to ask its parent anything: the parent's run loop is blocked inside the
             delegation, so `answer_subagent` cannot be reached until it returns.
+        event_stream_handler: Streams every delegation's events as they happen,
+            including for specialists created at run time. An agent supplied as
+            `SubAgentConfig["agent"]` keeps its own handler if it has one.
+        event_stream_handler_factory: The same, resolved per delegation from the
+            parent run context, the subagent config and the task id — which is
+            what lets a handler label the events of a fan-out. Mutually exclusive
+            with `event_stream_handler`.
+        cancel_grace_seconds: How long `wrap_run` waits for a cancelled
+            background task to unwind before logging it and returning.
 
     Raises:
         ValueError: From `create_subagent_toolset` when the configuration is
-            self-contradictory — an invalid `delegation_configuration`, or one
+            self-contradictory — an invalid `delegation_configuration`, one
             whose hidden tools make `subagents`, `registry`, `allowed_models`,
-            `capabilities_map`, or `default_agent_factory` unreachable.
+            `capabilities_map`, or `default_agent_factory` unreachable, or both
+            an `event_stream_handler` and an `event_stream_handler_factory`.
     """
 
     subagents: list[SubAgentConfig] | None = None
@@ -132,6 +143,9 @@ class SubAgentCapability(AbstractCapability[Any]):
     ask_user: AskUserCallback | None = None
     ask_timeout_seconds: float = DEFAULT_ASK_TIMEOUT_SECONDS
     contain_errors: bool = True
+    event_stream_handler: EventStreamHandler[Any] | None = None
+    event_stream_handler_factory: EventStreamHandlerFactory | None = None
+    cancel_grace_seconds: float = DEFAULT_CANCEL_GRACE_SECONDS
     _toolset: SubAgentToolset = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
@@ -157,6 +171,9 @@ class SubAgentCapability(AbstractCapability[Any]):
             ask_user=self.ask_user,
             ask_timeout_seconds=self.ask_timeout_seconds,
             contain_errors=self.contain_errors,
+            event_stream_handler=self.event_stream_handler,
+            event_stream_handler_factory=self.event_stream_handler_factory,
+            cancel_grace_seconds=self.cancel_grace_seconds,
         )
 
     @classmethod

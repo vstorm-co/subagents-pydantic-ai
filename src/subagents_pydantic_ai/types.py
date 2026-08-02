@@ -19,6 +19,8 @@ from pydantic_ai.models import Model
 from typing_extensions import NotRequired, TypedDict
 
 if TYPE_CHECKING:
+    from pydantic_ai import DeferredToolRequests
+    from pydantic_ai.agent import EventStreamHandler
     from pydantic_ai.messages import FinishReason
     from pydantic_ai.toolsets import AbstractToolset
     from pydantic_ai.usage import RunUsage
@@ -102,6 +104,15 @@ class TaskStatus(_ValueStrEnum):
     RETRYING = "retrying"
     """Task hit a transient error and is waiting to retry."""
 
+    DEFERRED = "deferred"
+    """Task suspended for human approval or a deferred tool call.
+
+    Distinct from `FAILED`: nothing went wrong, the subagent is waiting on a
+    decision this library cannot make. Terminal here because resuming a
+    suspension belongs to whoever holds the deferred requests -- see
+    `TaskHandle.deferred_requests`.
+    """
+
 
 # Type aliases
 ExecutionMode = Literal["sync", "async", "auto"]
@@ -128,7 +139,7 @@ DelegationConfiguration = Literal[
 
 
 TERMINAL_STATUSES: frozenset[TaskStatus] = frozenset(
-    {TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED}
+    {TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED, TaskStatus.DEFERRED}
 )
 """Statuses a task never leaves. The first terminal transition wins."""
 
@@ -336,6 +347,30 @@ subagent config. Return `None` to run that task without explicit limits.
 """
 
 
+EventStreamHandlerFactory = Callable[
+    [RunContext[Any], SubAgentConfig, str], "EventStreamHandler[Any] | None"
+]
+"""Factory resolving the event-stream handler for one delegated subagent task.
+
+Called once per delegation with the parent run context, the selected subagent
+config, and the task id. The task id is the argument that makes a fan-out
+readable: three specialists streaming into one handler are otherwise
+indistinguishable, and the events themselves carry nothing to tell them apart.
+
+Return `None` to run that task without streaming.
+
+Example:
+    ```python
+    def handler_for(ctx: RunContext[object], config: SubAgentConfig, task_id: str):
+        async def on_events(run_ctx: RunContext[object], events: Any) -> None:
+            async for event in events:
+                await socket.send({"task_id": task_id, "subagent": config["name"], "event": event})
+
+        return on_events
+    ```
+"""
+
+
 def _generate_message_id() -> str:
     """Generate a unique message ID."""
     return str(uuid.uuid4())
@@ -393,6 +428,10 @@ class TaskHandle:
         parent_run_id: `run_id` of the parent run that started this task. Tools
             use it to refuse cross-run access, and the capability uses it to
             cancel a run's tasks when that run ends.
+        deferred_requests: The tool calls a `DEFERRED` subagent is suspended on.
+            Set only for that status, and the only place they survive: the
+            delegation raises so the signal reaches the parent run, and a raise
+            carries no result to read them off.
     """
 
     task_id: str
@@ -426,6 +465,7 @@ class TaskHandle:
     retry_count: int = 0
     """Number of transient-failure retries performed for this task."""
     parent_run_id: str | None = None
+    deferred_requests: DeferredToolRequests | None = None
 
     @property
     def is_finished(self) -> bool:

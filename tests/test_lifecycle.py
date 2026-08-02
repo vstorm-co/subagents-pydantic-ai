@@ -14,14 +14,16 @@ from datetime import timezone
 from typing import Any
 
 import pytest
-from pydantic_ai import UsageLimits
+from pydantic_ai import DeferredToolRequests, UsageLimits
 from pydantic_ai.exceptions import (
     ApprovalRequired,
     CallDeferred,
     ModelRetry,
     UnexpectedModelBehavior,
     UsageLimitExceeded,
+    UserError,
 )
+from pydantic_ai.messages import ToolCallPart
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.toolsets import FunctionToolset
 
@@ -67,7 +69,7 @@ class Ctx:
 
 
 class _Run:
-    def __init__(self, output: str) -> None:
+    def __init__(self, output: Any) -> None:
         self.result = _Result(output)
         self.next_node: Any = object()
 
@@ -81,7 +83,7 @@ class _Run:
 
 
 class _Result:
-    def __init__(self, output: str) -> None:
+    def __init__(self, output: Any) -> None:
         self.output = output
 
 
@@ -106,7 +108,7 @@ class StubAgent:
 
     def __init__(
         self,
-        output: str = "done",
+        output: Any = "done",
         error: BaseException | None = None,
         block: asyncio.Event | None = None,
     ) -> None:
@@ -841,12 +843,35 @@ class TestErrorContract:
         with pytest.raises(ValueError, match="bad argument"):
             await toolset.tools["task"].function(Ctx(), "work", "worker")
 
-    async def test_sync_marks_handle_failed_when_signal_propagates(self) -> None:
+    async def test_sync_marks_handle_deferred_when_a_suspension_propagates(self) -> None:
+        """A suspension is not a failure, and the handle has to say which it was.
+
+        `FAILED` sent a caller looking for a defect when what the delegation
+        needs is a person to decide.
+        """
         handle = TaskHandle(task_id="t1", subagent_name="worker", description="d")
 
         with pytest.raises(CallDeferred):
             await _run_sync(
                 agent=StubAgent(error=CallDeferred()),
+                config=_config(),
+                description="work",
+                deps=Deps(),
+                task_id="t1",
+                handle=handle,
+            )
+
+        assert handle.status == TaskStatus.DEFERRED
+        assert handle.error is not None
+        assert handle.error.startswith("CallDeferred:")
+
+    async def test_sync_marks_handle_failed_when_a_non_suspension_signal_propagates(self) -> None:
+        """`UserError` and the `Skip*` signals still propagate as failures."""
+        handle = TaskHandle(task_id="t1", subagent_name="worker", description="d")
+
+        with pytest.raises(UserError):
+            await _run_sync(
+                agent=StubAgent(error=UserError("misconfigured")),
                 config=_config(),
                 description="work",
                 deps=Deps(),
@@ -876,7 +901,7 @@ class TestErrorContract:
         await asyncio.gather(*manager.tasks.values(), return_exceptions=True)
 
         handle = manager.handles["t1"]
-        assert handle.status == TaskStatus.FAILED
+        assert handle.status == TaskStatus.DEFERRED
         assert "cannot run in the background" in (handle.error or "")
         assert "mode='sync'" in (handle.error or "")
 
@@ -1317,3 +1342,396 @@ class _HistoryRecordingAgent:
     def iter(self, prompt: Any = None, **kwargs: Any) -> Any:
         self.seen_history = kwargs.get("message_history")
         return _CM(StubAgent())
+
+
+# --------------------------------------------------------------------------- #
+# Deferred output
+# --------------------------------------------------------------------------- #
+
+
+def _deferred(*, approvals: bool = False, calls: bool = False) -> DeferredToolRequests:
+    """A `DeferredToolRequests` holding whichever kind of parked call is asked for."""
+    return DeferredToolRequests(
+        calls=[ToolCallPart(tool_name="fetch", args={}, tool_call_id="c1")] if calls else [],
+        approvals=(
+            [ToolCallPart(tool_name="send_email", args={}, tool_call_id="a1")] if approvals else []
+        ),
+    )
+
+
+class TestDeferredOutput:
+    """A suspended subagent must not be reported to the parent as a finished one.
+
+    `_ALWAYS_PROPAGATE` guards the exception route, but an agent whose
+    `output_type` includes `DeferredToolRequests` never raises: the run ends
+    normally with the parked calls as its output. That reached `serialize_output`,
+    so the parent read `{"calls": [], "approvals": [...]}` as the subagent's
+    answer and the handle said `completed` -- the exact outcome the module
+    docstring says the design prevents, arriving by the other route.
+    """
+
+    async def test_sync_raises_approval_required_instead_of_answering(self) -> None:
+        handle = TaskHandle(task_id="t1", subagent_name="worker", description="d")
+
+        with pytest.raises(ApprovalRequired):
+            await _run_sync(
+                agent=StubAgent(output=_deferred(approvals=True)),
+                config=_config(),
+                description="send the email",
+                deps=Deps(),
+                task_id="t1",
+                handle=handle,
+            )
+
+        assert handle.status == TaskStatus.DEFERRED
+        assert handle.result is None
+
+    async def test_sync_raises_call_deferred_when_nothing_needs_approval(self) -> None:
+        """Only deferred calls means nobody has to be asked, so `CallDeferred` is the signal."""
+        handle = TaskHandle(task_id="t1", subagent_name="worker", description="d")
+
+        with pytest.raises(CallDeferred):
+            await _run_sync(
+                agent=StubAgent(output=_deferred(calls=True)),
+                config=_config(),
+                description="fetch it",
+                deps=Deps(),
+                task_id="t1",
+                handle=handle,
+            )
+
+        assert handle.status == TaskStatus.DEFERRED
+
+    async def test_an_approval_outranks_a_deferred_call(self) -> None:
+        """A parent told only that a call was deferred would never ask anyone."""
+        with pytest.raises(ApprovalRequired):
+            await _run_sync(
+                agent=StubAgent(output=_deferred(approvals=True, calls=True)),
+                config=_config(),
+                description="both",
+                deps=Deps(),
+                task_id="t1",
+            )
+
+    async def test_the_parked_calls_survive_on_the_handle(self) -> None:
+        """The raise carries no result, so the handle is the only place they can be read."""
+        handle = TaskHandle(task_id="t1", subagent_name="worker", description="d")
+
+        with pytest.raises(ApprovalRequired):
+            await _run_sync(
+                agent=StubAgent(output=_deferred(approvals=True)),
+                config=_config(),
+                description="send the email",
+                deps=Deps(),
+                task_id="t1",
+                handle=handle,
+            )
+
+        assert handle.deferred_requests is not None
+        assert [call.tool_name for call in handle.deferred_requests.approvals] == ["send_email"]
+
+    async def test_a_suspended_run_does_not_save_its_chat_trace(self) -> None:
+        """Resuming a trace saved mid-suspension would replay a point that never resolved."""
+        saved: list[list[Any]] = []
+
+        with pytest.raises(ApprovalRequired):
+            await _run_sync(
+                agent=StubAgent(output=_deferred(approvals=True)),
+                config=_config(),
+                description="send the email",
+                deps=Deps(),
+                task_id="t1",
+                on_message_history=saved.append,
+            )
+
+        assert saved == []
+
+    async def test_an_empty_deferred_output_is_an_ordinary_result(self) -> None:
+        """Nothing is parked, so there is nothing to strand the delegation on."""
+        handle = TaskHandle(task_id="t1", subagent_name="worker", description="d")
+
+        result = await _run_sync(
+            agent=StubAgent(output=DeferredToolRequests()),
+            config=_config(),
+            description="work",
+            deps=Deps(),
+            task_id="t1",
+            handle=handle,
+        )
+
+        assert handle.status == TaskStatus.COMPLETED
+        assert "calls" in result
+
+    async def test_background_records_deferred_rather_than_completed(self) -> None:
+        """No caller is left to hand the parked calls back to, so this is as far as it goes."""
+        manager = TaskManager(message_bus=InMemoryMessageBus())
+
+        await _run_async(
+            agent=StubAgent(output=_deferred(approvals=True)),
+            config=_config(),
+            description="send the email",
+            deps=Deps(),
+            task_id="t1",
+            task_manager=manager,
+            message_bus=manager.message_bus,
+        )
+        await asyncio.gather(*manager.tasks.values(), return_exceptions=True)
+
+        handle = manager.handles["t1"]
+        assert handle.status == TaskStatus.DEFERRED
+        assert handle.result is None
+        assert "mode='sync'" in (handle.error or "")
+        assert handle.deferred_requests is not None
+
+    async def test_a_cancel_that_already_landed_outranks_the_suspension(self) -> None:
+        """First terminal transition wins: a cancelled task does not become deferred."""
+        handle = TaskHandle(task_id="t1", subagent_name="worker", description="d")
+        handle.finish(TaskStatus.CANCELLED, error="Task was cancelled")
+
+        with pytest.raises(ApprovalRequired):
+            await _run_sync(
+                agent=StubAgent(output=_deferred(approvals=True)),
+                config=_config(),
+                description="send the email",
+                deps=Deps(),
+                task_id="t1",
+                handle=handle,
+            )
+
+        assert handle.status == TaskStatus.CANCELLED
+        assert handle.deferred_requests is None
+
+    async def test_a_background_cancel_that_already_landed_outranks_the_suspension(self) -> None:
+        """The same invariant on the background path, where the cancel arrives mid-run."""
+        manager = TaskManager(message_bus=InMemoryMessageBus())
+        block = asyncio.Event()
+
+        await _run_async(
+            agent=StubAgent(output=_deferred(approvals=True), block=block),
+            config=_config(),
+            description="send the email",
+            deps=Deps(),
+            task_id="t1",
+            task_manager=manager,
+            message_bus=manager.message_bus,
+        )
+        await asyncio.sleep(0)
+        manager.handles["t1"].finish(TaskStatus.CANCELLED, error="Task was cancelled")
+        block.set()
+        await asyncio.gather(*manager.tasks.values(), return_exceptions=True)
+
+        handle = manager.handles["t1"]
+        assert handle.status == TaskStatus.CANCELLED
+        assert handle.deferred_requests is None
+
+    async def test_check_task_tells_the_model_a_delegation_is_waiting_on_a_person(self) -> None:
+        """The model reads the outcome, not the status name, so the guidance has to be in it."""
+        toolset = _toolset()
+        toolset._compiled["worker"].agent = StubAgent(output=_deferred(approvals=True))
+
+        with pytest.raises(ApprovalRequired):
+            await toolset.tools["task"].function(Ctx(), "send the email", "worker")
+
+        task_id = next(iter(toolset.task_manager.handles))
+        rendered = await toolset.tools["check_task"].function(Ctx(), task_id)
+
+        assert "Status: deferred" in rendered
+        assert "human decision" in rendered
+
+
+# --------------------------------------------------------------------------- #
+# Event streaming
+# --------------------------------------------------------------------------- #
+
+
+class _StreamingAgent:
+    """Agent stand-in that reports whichever handler `run_with_retry` resolved."""
+
+    def __init__(self, own_handler: Any = None) -> None:
+        if own_handler is not None:
+            self.event_stream_handler = own_handler
+        self.seen_handler: Any = _UNSET
+
+    def iter(self, prompt: Any = None, **kwargs: Any) -> _CM:
+        return _CM(StubAgent())
+
+
+class TestEventStreamHandler:
+    """Streaming a delegation must not require reaching into each agent instance.
+
+    A handler could only be set on the agent object, which a dynamically created
+    specialist does not have -- the library builds it -- so "stream subagents"
+    and "let the model create specialists" were mutually exclusive, undocumented.
+    """
+
+    @staticmethod
+    def _record(calls: list[tuple[str, str]], label: str) -> Any:
+        async def handler(ctx: Any, events: Any) -> None:  # pragma: no cover - never awaited
+            calls.append((label, "streamed"))
+
+        return handler
+
+    async def test_the_toolset_handler_reaches_the_run(self, monkeypatch: Any) -> None:
+        seen: dict[str, Any] = {}
+
+        async def fake_run_with_retry(*args: Any, **kwargs: Any) -> Any:
+            seen["handler"] = kwargs.get("event_stream_handler")
+            return _Run("done").result
+
+        monkeypatch.setattr("subagents_pydantic_ai._execution.run_with_retry", fake_run_with_retry)
+        handler = self._record([], "toolset")
+
+        await _run_sync(
+            agent=StubAgent(),
+            config=_config(),
+            description="work",
+            deps=Deps(),
+            task_id="t1",
+            event_stream_handler=handler,
+        )
+
+        assert seen["handler"] is handler
+
+    async def test_an_agents_own_handler_wins_over_the_toolsets(self, monkeypatch: Any) -> None:
+        """A handler set on one specialist is a deliberate choice about that specialist."""
+        seen: dict[str, Any] = {}
+
+        async def fake_run_with_retry(*args: Any, **kwargs: Any) -> Any:
+            seen["handler"] = kwargs.get("event_stream_handler")
+            return _Run("done").result
+
+        monkeypatch.setattr("subagents_pydantic_ai._execution.run_with_retry", fake_run_with_retry)
+        own = self._record([], "own")
+        toolset_handler = self._record([], "toolset")
+
+        await _run_sync(
+            agent=_StreamingAgent(own_handler=own),
+            config=_config(),
+            description="work",
+            deps=Deps(),
+            task_id="t1",
+            event_stream_handler=toolset_handler,
+        )
+
+        assert seen["handler"] is own
+
+    async def test_a_background_delegation_streams_too(self, monkeypatch: Any) -> None:
+        seen: dict[str, Any] = {}
+
+        async def fake_run_with_retry(*args: Any, **kwargs: Any) -> Any:
+            seen["handler"] = kwargs.get("event_stream_handler")
+            return _Run("done").result
+
+        monkeypatch.setattr("subagents_pydantic_ai._execution.run_with_retry", fake_run_with_retry)
+        manager = TaskManager(message_bus=InMemoryMessageBus())
+        handler = self._record([], "toolset")
+
+        await _run_async(
+            agent=StubAgent(),
+            config=_config(),
+            description="work",
+            deps=Deps(),
+            task_id="t1",
+            task_manager=manager,
+            message_bus=manager.message_bus,
+            event_stream_handler=handler,
+        )
+        await asyncio.gather(*manager.tasks.values(), return_exceptions=True)
+
+        assert seen["handler"] is handler
+
+    async def test_the_factory_receives_the_task_id_that_labels_the_fan_out(self) -> None:
+        """Events carry nothing to tell concurrent specialists apart; the task id does."""
+        seen: list[tuple[str, str]] = []
+
+        def factory(ctx: Any, config: SubAgentConfig, task_id: str) -> Any:
+            seen.append((config["name"], task_id))
+            return None
+
+        toolset = _toolset(event_stream_handler_factory=factory)
+        toolset._compiled["worker"].agent = StubAgent()
+
+        await toolset.tools["task"].function(Ctx(), "work", "worker")
+
+        assert len(seen) == 1
+        name, task_id = seen[0]
+        assert name == "worker"
+        assert task_id in toolset.task_manager.handles
+
+    def test_a_handler_and_a_factory_together_are_refused(self) -> None:
+        """Both are callables, so nothing downstream could tell them apart."""
+        with pytest.raises(ValueError, match="mutually exclusive"):
+            _toolset(
+                event_stream_handler=self._record([], "h"),
+                event_stream_handler_factory=lambda ctx, config, task_id: None,
+            )
+
+
+# --------------------------------------------------------------------------- #
+# Cancellation is bounded
+# --------------------------------------------------------------------------- #
+
+
+class TestCancelGrace:
+    """`cancel_all` runs in the finalizer of a parent run, so its wait must end.
+
+    `CancelledError` can be caught, and a subagent's toolset is arbitrary consumer
+    code. Awaiting each cancelled task with no bound meant one subagent that
+    swallowed the cancel held the parent run's teardown open forever, with
+    nothing logged.
+    """
+
+    @staticmethod
+    async def _uncancellable(started: asyncio.Event, release: asyncio.Event) -> None:
+        started.set()
+        while True:
+            try:
+                await release.wait()
+                return
+            except asyncio.CancelledError:
+                # Exactly the shape a too-wide `suppress` or a shielded client has.
+                continue
+
+    async def test_a_task_that_ignores_cancellation_does_not_hang_the_caller(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        manager = TaskManager(message_bus=InMemoryMessageBus(), cancel_grace_seconds=0.01)
+        started, release = asyncio.Event(), asyncio.Event()
+        handle = TaskHandle(task_id="stuck", subagent_name="worker", description="d")
+        manager.create_task("stuck", self._uncancellable(started, release), handle)
+        await started.wait()
+
+        with caplog.at_level(logging.WARNING):
+            await asyncio.wait_for(manager.cancel_all(), timeout=2)
+
+        assert "did not unwind" in caplog.text
+        assert "stuck" in caplog.text
+        assert handle.status == TaskStatus.CANCELLED
+
+        release.set()
+        await asyncio.sleep(0)
+
+    async def test_a_well_behaved_task_is_still_awaited(self) -> None:
+        """The bound must not turn a clean unwind into a leak report."""
+        manager = TaskManager(message_bus=InMemoryMessageBus(), cancel_grace_seconds=5.0)
+        cleaned = asyncio.Event()
+
+        async def polite() -> None:
+            try:
+                await asyncio.Event().wait()
+            except asyncio.CancelledError:
+                cleaned.set()
+                raise
+
+        handle = TaskHandle(task_id="polite", subagent_name="worker", description="d")
+        manager.create_task("polite", polite(), handle)
+        await asyncio.sleep(0)
+
+        await manager.cancel_all()
+
+        assert cleaned.is_set()
+        assert manager.tasks["polite"].cancelled()
+
+    def test_a_non_positive_grace_is_refused(self) -> None:
+        with pytest.raises(ValueError, match="cancel_grace_seconds must be > 0"):
+            _toolset(cancel_grace_seconds=0)

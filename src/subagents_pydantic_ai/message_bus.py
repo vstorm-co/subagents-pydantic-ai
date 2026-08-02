@@ -24,6 +24,14 @@ from subagents_pydantic_ai.types import AgentMessage, MessageType, TaskHandle, T
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_CANCEL_GRACE_SECONDS = 5.0
+"""How long a cancelled background task is given to unwind before it is left behind.
+
+Long enough for a real `finally` -- closing a client, flushing a span -- and short
+enough that a subagent which ignores cancellation cannot hold a parent run's
+teardown open. See `TaskManager.cancel_all`.
+"""
+
 
 @dataclass
 class InMemoryMessageBus:
@@ -311,11 +319,14 @@ class TaskManager:
         handles: `TaskHandle` per task id, kept after the task finishes so its
             result and telemetry stay queryable.
         message_bus: Message bus used to deliver steering and cancel messages.
+        cancel_grace_seconds: How long `cancel_all` waits for a cancelled task to
+            unwind before logging it and moving on.
     """
 
     tasks: dict[str, asyncio.Task[None]] = field(default_factory=dict)
     handles: dict[str, TaskHandle] = field(default_factory=dict)
     message_bus: InMemoryMessageBus = field(default_factory=InMemoryMessageBus)
+    cancel_grace_seconds: float = DEFAULT_CANCEL_GRACE_SECONDS
     _cancel_events: dict[str, asyncio.Event] = field(default_factory=dict)
     _answer_futures: dict[str, asyncio.Future[str]] = field(default_factory=dict)
     _strong_refs: set[asyncio.Task[None]] = field(default_factory=set)
@@ -486,17 +497,28 @@ class TaskManager:
         return True
 
     async def cancel_all(self, parent_run_id: str | None = None) -> None:
-        """Cancel every live task and wait for it to finish cleaning up.
+        """Cancel every live task and wait, up to the grace period, for it to unwind.
 
         Called when a parent run ends. A background delegation that outlives its
         parent keeps working against deps the application has already torn down,
         and one blocked in `ask_parent` waits for an answer that can never come.
 
+        The wait is bounded because the caller is a `finally` block. A
+        `CancelledError` can be caught, and a subagent's toolset is arbitrary
+        consumer code -- an HTTP client with its own shield, a slow cleanup, a
+        `contextlib.suppress` a little too wide. An unbounded wait on one of
+        those never returns, so the parent run's teardown never returns either,
+        and the application hangs with nothing logged. A leaked task that is
+        reported is recoverable; a `finally` that never finishes is not.
+
+        The guarantee is therefore: every matching task is cancelled, and its
+        cleanup is awaited for at most `cancel_grace_seconds`.
+
         Args:
             parent_run_id: Only cancel tasks started by this parent run. `None`
                 cancels every live task.
         """
-        live: list[asyncio.Task[None]] = []
+        live: dict[asyncio.Task[None], str] = {}
         for task_id, task in list(self.tasks.items()):
             handle = self.handles.get(task_id)
             if parent_run_id is not None and (
@@ -507,17 +529,36 @@ class TaskManager:
                 # `cancel()` raises into whatever the task is awaiting, including a
                 # future held by `ask_parent`, so there is nothing to unblock first.
                 task.cancel()
-                live.append(task)
+                live[task] = task_id
                 # A task cancelled before its coroutine started never reaches its
                 # own `except asyncio.CancelledError`, so record the outcome here.
                 # `finish` is idempotent, so a task that does get there wins.
                 if handle is not None:
                     handle.finish(TaskStatus.CANCELLED, error="Task was cancelled")
 
-        for task in live:
-            # We requested the cancel, so the task acknowledging it is success.
-            with contextlib.suppress(asyncio.CancelledError):
-                await task
+        if not live:
+            return
+
+        # `asyncio.wait` rather than awaiting each task: it returns on timeout
+        # instead of raising, and it never re-raises a task's own exception, so
+        # one subagent's failure cannot stop the others from being waited on.
+        cancelled = set(live)
+        pending: set[asyncio.Task[None]] = cancelled
+        with contextlib.suppress(asyncio.CancelledError):
+            # Suppressed because this runs during the parent's own cancellation,
+            # where a `CancelledError` delivered here belongs to that outer
+            # cancel. Swallowing it is safe only because we stop waiting
+            # immediately after; the outer cancellation continues to propagate
+            # from the `finally` this was called in.
+            _, pending = await asyncio.wait(cancelled, timeout=self.cancel_grace_seconds)
+
+        for task in pending:
+            logger.warning(
+                "Subagent task %s did not unwind within %.1fs of being cancelled; "
+                "leaving it to the event loop",
+                live[task],
+                self.cancel_grace_seconds,
+            )
 
     def cleanup_task(self, task_id: str) -> None:
         """Clean up resources for a completed task.

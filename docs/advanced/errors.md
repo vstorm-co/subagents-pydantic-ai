@@ -25,11 +25,12 @@ agent = Agent(
 )
 ```
 
-## The four outcomes
+## The five outcomes
 
 | What happened | How it reaches the parent |
 |---|---|
 | Control-flow signal (`CallDeferred`, `ApprovalRequired`, `Skip*`) | Propagates unchanged |
+| A `DeferredToolRequests` **output** | The matching signal is raised, so it propagates too |
 | `UserError` | Propagates unchanged |
 | `UsageLimitExceeded` | Propagates unchanged from a sync delegation |
 | Anything else | `ModelRetry`, or the subagent's `on_failure` message |
@@ -46,12 +47,37 @@ so they always reach the parent run.
 retry fixes a misconfiguration. Reporting it to the model as a task failure hides a
 bug you need to see.
 
+### A deferred output is the same suspension, arriving differently
+
+A subagent whose `output_type` includes `DeferredToolRequests` does not raise. Its
+run ends normally, with the parked calls as its output -- exactly as a top-level run
+does for a caller that is expected to resume it. Nothing about that is an
+exception, so the guard above never sees it.
+
+It is treated as the suspension it is. The handle is marked `deferred`, the parked
+calls are kept on `TaskHandle.deferred_requests`, and the matching signal is raised
+so the parent run suspends too: `ApprovalRequired` when anything needs approving,
+`CallDeferred` otherwise. A parent told only that a call was deferred would resume
+it with a tool result, and nobody would ever be asked the question the child
+stopped for.
+
+```python
+handle = toolset.task_manager.get_handle(task_id)
+if handle is not None and handle.status is TaskStatus.DEFERRED:
+    assert handle.deferred_requests is not None
+    for call in handle.deferred_requests.approvals:
+        print("waiting on", call.tool_name)
+```
+
+The suspended run's chat trace is deliberately **not** saved: continuing it later
+would resume from a point whose deferred results were never supplied.
+
 !!! warning "Background mode cannot suspend"
     A background delegation returned its tool result (the task id) long before the
-    signal arrives, so there is no caller left to hand the deferred state back to.
-    The task is marked `failed` with an error saying to delegate it with
-    `mode="sync"` instead. Approval and deferred tools need synchronous
-    delegation.
+    suspension arrives, so there is no caller left to hand the deferred state back
+    to. The task is marked `deferred` with an error saying to delegate it with
+    `mode="sync"` instead, and the parked calls are still kept on the handle.
+    Approval and deferred tools need synchronous delegation.
 
 ### Usage limits stop the parent run
 

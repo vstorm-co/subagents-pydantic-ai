@@ -19,6 +19,7 @@ from collections import OrderedDict
 from typing import Any, Literal
 
 from pydantic_ai import Agent, RunContext, UsageLimits
+from pydantic_ai.agent import EventStreamHandler
 from pydantic_ai.models import Model
 from pydantic_ai.toolsets import AbstractToolset, FunctionToolset
 
@@ -39,7 +40,11 @@ from subagents_pydantic_ai.dynamic_agent import (
     CapabilityFactory,
     build_dynamic_agent,
 )
-from subagents_pydantic_ai.message_bus import InMemoryMessageBus, TaskManager
+from subagents_pydantic_ai.message_bus import (
+    DEFAULT_CANCEL_GRACE_SECONDS,
+    InMemoryMessageBus,
+    TaskManager,
+)
 from subagents_pydantic_ai.prompts import (
     ANSWER_SUBAGENT_DESCRIPTION,
     CHECK_TASK_DESCRIPTION,
@@ -60,6 +65,7 @@ from subagents_pydantic_ai.types import (
     AskUserCallback,
     CompiledSubAgent,
     DelegationConfiguration,
+    EventStreamHandlerFactory,
     ExecutionMode,
     MessageType,
     SubAgentConfig,
@@ -345,6 +351,9 @@ class SubAgentToolset(FunctionToolset[Any]):
         max_result_chars: int | None = 2000,
         ask_timeout_seconds: float = DEFAULT_ASK_TIMEOUT_SECONDS,
         contain_errors: bool = True,
+        event_stream_handler: EventStreamHandler[Any] | None = None,
+        event_stream_handler_factory: EventStreamHandlerFactory | None = None,
+        cancel_grace_seconds: float = DEFAULT_CANCEL_GRACE_SECONDS,
     ) -> None:
         """Build the toolset. See `create_subagent_toolset` for the argument reference."""
         super().__init__(id=id or "subagents")
@@ -360,6 +369,9 @@ class SubAgentToolset(FunctionToolset[Any]):
             max_agents=max_agents,
             max_chat_traces=max_chat_traces,
             max_task_handles=max_task_handles,
+            event_stream_handler=event_stream_handler,
+            event_stream_handler_factory=event_stream_handler_factory,
+            cancel_grace_seconds=cancel_grace_seconds,
         )
 
         self._descriptions = descriptions or {}
@@ -375,11 +387,15 @@ class SubAgentToolset(FunctionToolset[Any]):
         self._max_result_chars = max_result_chars
         self._ask_timeout_seconds = ask_timeout_seconds
         self._contain_errors = contain_errors
+        self._event_stream_handler = event_stream_handler
+        self._event_stream_handler_factory = event_stream_handler_factory
 
         self.registry = (
             registry if registry is not None else DynamicAgentRegistry(max_agents=max_agents)
         )
-        self.task_manager = TaskManager(message_bus=InMemoryMessageBus())
+        self.task_manager = TaskManager(
+            message_bus=InMemoryMessageBus(), cancel_grace_seconds=cancel_grace_seconds
+        )
         self._chat_traces = ChatTraceStore(max_traces=max_chat_traces)
         # Usage from evicted handles, so `get_total_usage` survives eviction.
         self._evicted_usage = {"input_tokens": 0, "output_tokens": 0, "requests": 0}
@@ -409,6 +425,9 @@ class SubAgentToolset(FunctionToolset[Any]):
         max_agents: int,
         max_chat_traces: int,
         max_task_handles: int,
+        event_stream_handler: EventStreamHandler[Any] | None,
+        event_stream_handler_factory: EventStreamHandlerFactory | None,
+        cancel_grace_seconds: float,
     ) -> None:
         """Reject a configuration that contradicts itself.
 
@@ -476,6 +495,19 @@ class SubAgentToolset(FunctionToolset[Any]):
 
         if max_agents < 0:
             raise ValueError(f"max_agents must be >= 0, got {max_agents}")
+
+        # Both are callables, so nothing downstream could tell them apart and
+        # one would silently win. Which one is not something a caller should
+        # have to discover from the source.
+        if event_stream_handler is not None and event_stream_handler_factory is not None:
+            raise ValueError(
+                "event_stream_handler and event_stream_handler_factory are mutually "
+                "exclusive. Pass the factory when the handler depends on the task, "
+                "the handler when it does not."
+            )
+
+        if cancel_grace_seconds <= 0:
+            raise ValueError(f"cancel_grace_seconds must be > 0, got {cancel_grace_seconds}")
 
     @property
     def _expose_create_agent(self) -> bool:
@@ -686,6 +718,23 @@ class SubAgentToolset(FunctionToolset[Any]):
 
     # -- delegation ------------------------------------------------------------
 
+    def _resolve_event_stream_handler(
+        self,
+        ctx: RunContext[SubAgentDepsProtocol],
+        config: SubAgentConfig,
+        task_id: str,
+    ) -> EventStreamHandler[Any] | None:
+        """The toolset's handler for one delegation, from the factory or the static one.
+
+        Resolved per delegation rather than baked onto an agent at construction,
+        which is what lets a dynamically created specialist stream: the library
+        builds that agent itself, so there is no instance for the application to
+        attach a handler to.
+        """
+        if self._event_stream_handler_factory is not None:
+            return self._event_stream_handler_factory(ctx, config, task_id)
+        return self._event_stream_handler
+
     async def _execute(
         self,
         ctx: RunContext[SubAgentDepsProtocol],
@@ -730,6 +779,12 @@ class SubAgentToolset(FunctionToolset[Any]):
                 runtime_toolsets.extend(self._toolsets_factory(subagent_deps))
 
         actual_task_id = task_id or uuid.uuid4().hex[:8]
+        # After the task id exists, because that is the argument that makes a
+        # fan-out readable: the events themselves carry nothing to tell three
+        # concurrent specialists apart.
+        resolved_event_stream_handler = self._resolve_event_stream_handler(
+            ctx, config, actual_task_id
+        )
         effective_chat_trace_id = chat_trace_id or uuid.uuid4().hex
         trace_key: ChatTraceKey = (config["name"], effective_chat_trace_id)
 
@@ -803,6 +858,7 @@ class SubAgentToolset(FunctionToolset[Any]):
                     on_message_history=on_history,
                     ask_timeout_seconds=self._ask_timeout_seconds,
                     contain_errors=config.get("contain_errors", self._contain_errors),
+                    event_stream_handler=resolved_event_stream_handler,
                 )
             finally:
                 self._chat_traces.release(trace_key)
@@ -833,6 +889,7 @@ class SubAgentToolset(FunctionToolset[Any]):
                 on_run_finished=lambda: self._chat_traces.release(trace_key),
                 ask_timeout_seconds=self._ask_timeout_seconds,
                 parent_run_id=ctx.run_id,
+                event_stream_handler=resolved_event_stream_handler,
             )
         except BaseException:
             # `_run_async` failed before the background task took ownership.
@@ -1283,6 +1340,9 @@ def create_subagent_toolset(
     max_result_chars: int | None = 2000,
     ask_timeout_seconds: float = DEFAULT_ASK_TIMEOUT_SECONDS,
     contain_errors: bool = True,
+    event_stream_handler: EventStreamHandler[Any] | None = None,
+    event_stream_handler_factory: EventStreamHandlerFactory | None = None,
+    cancel_grace_seconds: float = DEFAULT_CANCEL_GRACE_SECONDS,
 ) -> SubAgentToolset:
     """Create a toolset for delegating tasks to subagents.
 
@@ -1378,19 +1438,39 @@ def create_subagent_toolset(
             `ApprovalRequired`, `Skip*`), `UserError`, and `UsageLimitExceeded`
             always propagate. Individual subagents can
             override this with `SubAgentConfig["contain_errors"]`.
+        event_stream_handler: Streams every delegation's events -- model text,
+            thinking, tool calls and their results -- as they happen, so an
+            application can show what a specialist is doing rather than a
+            spinner. Applies to dynamically created specialists too, which the
+            library builds itself and which therefore cannot carry a handler of
+            their own. An agent passed in as `SubAgentConfig["agent"]` with its
+            own `event_stream_handler` keeps it: the specific choice wins and
+            this is the default for everything else.
+        event_stream_handler_factory: The same, resolved per delegation from the
+            parent run context, the subagent config and the task id. Use it when
+            the handler has to label its events -- a fan-out of three specialists
+            streaming into one callback is otherwise indistinguishable. Mutually
+            exclusive with `event_stream_handler`.
+        cancel_grace_seconds: How long `cancel_all` waits for a cancelled
+            background task to unwind before logging it and moving on. Bounded
+            because the wait happens in the finalizer of the parent run: a
+            subagent that swallows `CancelledError` would otherwise hold the
+            whole run's teardown open.
 
     Returns:
         A `SubAgentToolset` configured with the subagent management tools.
 
     Raises:
         ValueError: If `max_result_chars` or `max_agents` is negative; if
-            `ask_timeout_seconds` is not positive; if `max_chat_traces` or
+            `ask_timeout_seconds` or `cancel_grace_seconds` is not positive; if
+            `max_chat_traces` or
             `max_task_handles` is below 1; if `delegation_configuration` is invalid; if
             `"oneshot_only"` is combined with `subagents` or a `registry`, neither
-            of which is reachable without `task`; or if a mode exposing neither
+            of which is reachable without `task`; if a mode exposing neither
             `create_agent` nor `delegate` is given `allowed_models`,
             `capabilities_map`, or `default_agent_factory`, which only those
-            tools consult.
+            tools consult; or if both `event_stream_handler` and
+            `event_stream_handler_factory` are given.
 
     Example:
         ```python
@@ -1434,4 +1514,7 @@ def create_subagent_toolset(
         max_result_chars=max_result_chars,
         ask_timeout_seconds=ask_timeout_seconds,
         contain_errors=contain_errors,
+        event_stream_handler=event_stream_handler,
+        event_stream_handler_factory=event_stream_handler_factory,
+        cancel_grace_seconds=cancel_grace_seconds,
     )

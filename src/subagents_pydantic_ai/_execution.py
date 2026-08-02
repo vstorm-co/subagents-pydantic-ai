@@ -2,7 +2,7 @@
 
 ## Error contract
 
-A delegation can fail in four distinct ways, and collapsing them into one string
+A delegation can fail in five distinct ways, and collapsing them into one string
 result -- which is what this module used to do -- loses information the parent run
 needs:
 
@@ -10,6 +10,16 @@ needs:
   pydantic-ai suspends a run for deferred tools or human approval. Catching them
   turns a suspended run into a tool result the parent reads as a finished task, so
   they always propagate.
+- **A deferred *output*** is the same suspension arriving by the other route. An
+  agent whose `output_type` includes `DeferredToolRequests` does not raise: the
+  run ends normally with the parked calls as its output, exactly as a top-level
+  run does for a caller that is expected to resume it. Nothing about that is a
+  failure, so the guard above never sees it -- and without the check in
+  `_deferred_requests` the parent is handed a serialized dataclass as the
+  subagent's answer and the handle says `completed`. It is treated as the
+  signal it is: `DEFERRED` on the handle, the parked calls kept on
+  `TaskHandle.deferred_requests`, and the matching exception raised so the
+  parent run suspends too.
 - **`UserError`** is a setup mistake no retry can fix. Reporting it to the model as
   a task failure hides it, so it always propagates.
 - **`UsageLimitExceeded`** means a delegation ran out of budget. Every subagent
@@ -31,7 +41,8 @@ import logging
 from collections.abc import Callable
 from typing import Any
 
-from pydantic_ai import UsageLimits
+from pydantic_ai import DeferredToolRequests, UsageLimits
+from pydantic_ai.agent import EventStreamHandler
 from pydantic_ai.exceptions import (
     ApprovalRequired,
     CallDeferred,
@@ -93,6 +104,62 @@ _HUMAN_IN_THE_LOOP: tuple[type[Exception], ...] = (CallDeferred, ApprovalRequire
 """Signals a background delegation cannot deliver: they need a caller to hand the
 deferred state back to, and the delegating tool returned long ago."""
 
+_SUSPENSION_ERROR = "the subagent stopped for a human decision and produced no answer"
+"""What a `DEFERRED` handle says happened, whichever route the suspension arrived by."""
+
+_BACKGROUND_SUSPENSION_ERROR = (
+    "a subagent that needs approval or defers a tool call cannot run in the "
+    "background; delegate it with mode='sync'."
+)
+"""Why a background delegation cannot suspend, whichever route it arrived by.
+
+Shared so the exception and the deferred-output branch cannot drift into two
+explanations of one rule.
+"""
+
+
+def _deferred_requests(output: object) -> DeferredToolRequests | None:
+    """The parked tool calls in a run's output, when it suspended rather than answered.
+
+    An empty `DeferredToolRequests` -- no calls and no approvals -- is not a
+    suspension. Core does not produce one, but treating it as deferred would
+    strand a delegation on nothing to decide, so it is read as an ordinary
+    output and serialized like any other.
+    """
+    if not isinstance(output, DeferredToolRequests):
+        return None
+    if not output.calls and not output.approvals:
+        return None
+    return output
+
+
+def _resolve_event_stream_handler(
+    agent: Any, configured: EventStreamHandler[Any] | None
+) -> EventStreamHandler[Any] | None:
+    """The handler for this delegation: the agent's own first, the toolset's as a default.
+
+    An agent handed over as `SubAgentConfig["agent"]` with a handler already on it
+    was configured for that one specialist deliberately, so it wins. A
+    toolset-level handler is the application saying "stream everything I did not
+    configure individually" -- it fills the gap rather than overriding the
+    specific choice, which is also the only way an agent the library builds
+    itself (a dynamic specialist) can stream at all.
+    """
+    own: EventStreamHandler[Any] | None = getattr(agent, "event_stream_handler", None)
+    return own or configured
+
+
+def _suspension_signal(deferred: DeferredToolRequests) -> Exception:
+    """The exception that reproduces a child's suspension in its parent run.
+
+    Approvals outrank deferred calls: a parent told only that a call was
+    deferred would resume it with a tool result, and nobody would ever be asked
+    the question the child stopped for.
+    """
+    if deferred.approvals:
+        return ApprovalRequired()
+    return CallDeferred()
+
 
 def _build_run_kwargs(
     deps: Any,
@@ -147,6 +214,7 @@ async def _run_sync(
     on_message_history: Callable[[list[Any]], None] | None = None,
     ask_timeout_seconds: float = DEFAULT_ASK_TIMEOUT_SECONDS,
     contain_errors: bool = True,
+    event_stream_handler: EventStreamHandler[Any] | None = None,
 ) -> str:
     """Run a subagent task synchronously, blocking until it finishes.
 
@@ -168,12 +236,16 @@ async def _run_sync(
         contain_errors: Whether a subagent crash is converted into a `ModelRetry`
             for the parent instead of propagating and aborting the parent run.
             Signals in `_ALWAYS_PROPAGATE` ignore this.
+        event_stream_handler: Streams this delegation's events. Used only when
+            the agent carries no handler of its own.
 
     Returns:
         The subagent's output, or the configured `on_failure` message.
 
     Raises:
         ModelRetry: When the subagent failed and no `on_failure` message is set.
+        ApprovalRequired: When the subagent suspended on a tool needing approval.
+        CallDeferred: When the subagent suspended on a deferred tool call.
         Exception: Control-flow signals, `UserError`, `UsageLimitExceeded`,
             and -- when `contain_errors` is false -- any other subagent exception.
     """
@@ -199,7 +271,14 @@ async def _run_sync(
                 run_kwargs=run_kwargs,
                 retry=RetryConfig.from_config(config),
                 on_retry=_retry_recorder(handle),
+                event_stream_handler=_resolve_event_stream_handler(agent, event_stream_handler),
             )
+    except _HUMAN_IN_THE_LOOP as exc:
+        # Before `_ALWAYS_PROPAGATE`, which also matches these: a suspension is
+        # not a failure, and reporting one as `FAILED` sends a caller looking for
+        # a defect instead of for the person who has to decide.
+        _suspend(handle, exc)
+        raise
     except _ALWAYS_PROPAGATE:
         _fail(handle, "propagated")
         raise
@@ -213,6 +292,15 @@ async def _run_sync(
             _fail(handle, str(exc))
             raise
         return _degrade(handle, config, task_id, exc, crashed=True)
+
+    deferred = _deferred_requests(result.output)
+    if deferred is not None:
+        signal = _suspension_signal(deferred)
+        # Deliberately not `capture_message_history`: a suspended run has not
+        # finished, and saving it would let a later `chat_trace_id` resume from a
+        # point whose deferred results were never supplied.
+        _suspend(handle, signal, deferred=deferred, result=result)
+        raise signal
 
     capture_message_history(result, on_message_history)
     output = serialize_output(result.output)
@@ -245,6 +333,32 @@ def _retry_recorder(handle: TaskHandle | None) -> OnRetryCallback | None:
 def _fail(handle: TaskHandle | None, error: str) -> None:
     if handle is not None:
         handle.finish(TaskStatus.FAILED, error=error)
+
+
+def _suspend(
+    handle: TaskHandle | None,
+    signal: Exception,
+    *,
+    deferred: DeferredToolRequests | None = None,
+    result: Any = None,
+) -> None:
+    """Record a delegation that stopped for a human instead of answering.
+
+    `deferred` is set only on the output route; the exception route carries no
+    result to read the parked calls off, which is why the two are distinguishable
+    on the handle but not in its status.
+
+    Telemetry is captured where there is a result to capture it from: the
+    suspended run still spent tokens, and a cost that only lands for delegations
+    that happened to finish is a cost report that under-reports exactly the runs
+    a human is about to make more expensive.
+    """
+    if handle is None:
+        return
+    if handle.finish(TaskStatus.DEFERRED, error=f"{type(signal).__name__}: {_SUSPENSION_ERROR}"):
+        handle.deferred_requests = deferred
+        if result is not None:
+            capture_observability(handle, result)
 
 
 def _degrade(
@@ -293,6 +407,7 @@ async def _run_async(
     on_run_finished: Callable[[], None] | None = None,
     ask_timeout_seconds: float = DEFAULT_ASK_TIMEOUT_SECONDS,
     parent_run_id: str | None = None,
+    event_stream_handler: EventStreamHandler[Any] | None = None,
 ) -> str:
     """Start a subagent task in the background and return its handle text.
 
@@ -313,6 +428,8 @@ async def _run_async(
         on_run_finished: Invoked once when the run finishes, however it finishes.
         ask_timeout_seconds: How long `ask_parent` waits for the parent's answer.
         parent_run_id: `run_id` of the parent run, so the task can be scoped to it.
+        event_stream_handler: Streams this delegation's events. Used only when
+            the agent carries no handler of its own.
 
     Returns:
         Text telling the parent the task id and how to check on it.
@@ -369,7 +486,24 @@ async def _run_async(
                     on_retry=_retry_recorder(handle),
                     cancel_check=cancel_requested,
                     inject_messages=pending_steering,
+                    event_stream_handler=_resolve_event_stream_handler(agent, event_stream_handler),
                 )
+            deferred = _deferred_requests(result.output)
+            if deferred is not None:
+                # No caller left to hand the parked calls back to, so this is as
+                # far as the delegation goes -- but the calls are kept on the
+                # handle, which is the only way an application can see what the
+                # subagent stopped on and re-run it where a human can answer.
+                if handle.finish(
+                    TaskStatus.DEFERRED,
+                    error=(
+                        f"{type(_suspension_signal(deferred)).__name__}: "
+                        f"{_BACKGROUND_SUSPENSION_ERROR}"
+                    ),
+                ):
+                    handle.deferred_requests = deferred
+                    capture_observability(handle, result)
+                return
             capture_message_history(result, on_message_history)
             if handle.finish(TaskStatus.COMPLETED, result=serialize_output(result.output)):
                 capture_observability(handle, result)
@@ -380,11 +514,8 @@ async def _run_async(
             handle.finish(TaskStatus.FAILED, error=f"{_USAGE_LIMIT_MARKER}: {exc}")
         except _HUMAN_IN_THE_LOOP as exc:
             handle.finish(
-                TaskStatus.FAILED,
-                error=(
-                    f"{type(exc).__name__}: a subagent that needs approval or defers a "
-                    f"tool call cannot run in the background; delegate it with mode='sync'."
-                ),
+                TaskStatus.DEFERRED,
+                error=f"{type(exc).__name__}: {_BACKGROUND_SUSPENSION_ERROR}",
             )
         except Exception as exc:
             logger.warning(
