@@ -5,6 +5,51 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.18] - 2026-08-05
+
+`default_model` no longer defaults to a model of the library's choosing. There is
+now **no implicit default**: it defaults to `None`, and anything that would have
+relied on the old fallback is refused instead of run.
+
+The old default was `"openai:gpt-4.1"`. A consumer that never set `default_model`
+got a delegate compiled against that string, which resolves whatever provider
+credential the process environment happens to hold. On a deployment holding no
+such key the build raised; on one that had `OPENAI_API_KEY` set it ran silently --
+in a multi-tenant host, a caller's work on a credential that was not theirs, off
+any per-caller model, budget or vault the host meant to enforce. The general-purpose
+delegate was the sharpest edge: it was always compiled from `default_model` at
+construction, so a host resolving a model per tenant had no single value to give it.
+
+### Changed
+
+- **`default_model` defaults to `None`** on `create_subagent_toolset`,
+  `SubAgentToolset`, `SubAgentCapability` and `create_agent_factory_toolset`. Pass
+  it to name the model subagents fall back on, or leave it unset to require every
+  subagent and every dynamic call to name one.
+- **The general-purpose delegate is now built the way every other subagent is** --
+  through `_compile_subagent`, from `default_model` or from `default_agent_factory`
+  when one is given. A host that resolves a model, a credential and a budget per
+  caller passes a `default_agent_factory` and gets a delegate it can account for,
+  rather than one the library compiled behind its back.
+
+### Fixed
+
+- **`include_general_purpose=True` with neither `default_model` nor
+  `default_agent_factory` now raises at construction**, naming the three ways out,
+  instead of failing later inside the model call (or not failing, on the wrong
+  credential).
+- **A `create_agent`, `delegate` or `task` call that names no model is refused with
+  a tool result** when there is no default -- the model can name one and call again
+  -- instead of the library choosing one for it.
+- **A configured subagent that names no model, and supplies no `agent` or
+  `agent_factory`, is refused when `default_model` is unset**, with a message
+  saying what it needs.
+
+Migration: a consumer relying on the old implicit `"openai:gpt-4.1"` should pass
+`default_model="openai:gpt-4.1"` explicitly. One that already names a model on
+every subagent and every call, or builds its own agents through a factory, needs
+no change.
+
 ## [0.2.16] - 2026-08-03
 
 Security housekeeping. **Nothing in the published package changes**: all five
