@@ -2307,6 +2307,106 @@ class TestAskParentEdgeCases:
         assert "no communication channel" in result
 
 
+def _ask_parent_injected(agent: FakeAgent) -> bool:
+    """Whether the delegation's first run received an `ask_parent` toolset at run time."""
+    injected = agent.iter_calls[0].get("toolsets") or []
+    return any(getattr(toolset, "id", None) == "ask_parent" for toolset in injected)
+
+
+class TestConfiguredSubagentQuestions:
+    """A caller-supplied configured subagent honours `can_ask_questions` too.
+
+    `_compile_subagent` appends `ask_parent` only to an agent it builds itself, so a
+    subagent whose agent the caller supplied (`agent` or `agent_factory`) skips that
+    step. `task` makes up for it by injecting the tool at run time for those, still
+    gated on `can_ask_questions`. Without this a caller-supplied subagent -- which is
+    every delegate in a consumer like agenticos -- could never ask, whatever its
+    config said.
+    """
+
+    @pytest.mark.asyncio
+    async def test_prebuilt_subagent_may_ask_when_its_config_allows(self):
+        agent = FakeAgent(result=MockResult("done"))
+        config = SubAgentConfig(
+            name="researcher",
+            description="Researches",
+            instructions="Research",
+            agent=agent,
+            can_ask_questions=True,
+        )
+        toolset = create_subagent_toolset(subagents=[config], include_general_purpose=False)
+
+        ctx = MockRunContext(deps=MockDeps())
+        await toolset.tools["task"].function(ctx, "find X", "researcher", "sync")
+
+        assert _ask_parent_injected(agent)
+
+    @pytest.mark.asyncio
+    async def test_prebuilt_subagent_cannot_ask_when_its_config_forbids(self):
+        agent = FakeAgent(result=MockResult("done"))
+        config = SubAgentConfig(
+            name="summariser",
+            description="Summarises",
+            instructions="Summarise",
+            agent=agent,
+            can_ask_questions=False,
+        )
+        toolset = create_subagent_toolset(subagents=[config], include_general_purpose=False)
+
+        ctx = MockRunContext(deps=MockDeps())
+        await toolset.tools["task"].function(ctx, "summarise X", "summariser", "sync")
+
+        assert not _ask_parent_injected(agent)
+
+    @pytest.mark.asyncio
+    async def test_factory_built_subagent_may_ask_when_its_config_allows(self):
+        agent = FakeAgent(result=MockResult("done"))
+        config = SubAgentConfig(
+            name="factory-made",
+            description="Built by a factory",
+            instructions="Work",
+            agent_factory=lambda _config: agent,
+            can_ask_questions=True,
+        )
+        toolset = create_subagent_toolset(subagents=[config], include_general_purpose=False)
+
+        ctx = MockRunContext(deps=MockDeps())
+        await toolset.tools["task"].function(ctx, "do X", "factory-made", "sync")
+
+        assert _ask_parent_injected(agent)
+
+    @pytest.mark.asyncio
+    async def test_library_built_subagent_is_not_injected_again_at_run_time(self):
+        """A library-built agent already carries `ask_parent` from compile time.
+
+        Its config names no `agent`/`agent_factory`, so `task` must leave the run-time
+        injection off -- adding a second `ask_parent` toolset would duplicate the id.
+        """
+        agent = FakeAgent(result=MockResult("done"))
+        config = SubAgentConfig(
+            name="built-here",
+            description="Built by the library",
+            instructions="Work",
+            can_ask_questions=True,
+        )
+        compiled = CompiledSubAgent(
+            name=config["name"],
+            description=config["description"],
+            config=config,
+            agent=agent,
+        )
+        with patch(
+            "subagents_pydantic_ai.toolset._compile_subagent",
+            return_value=compiled,
+        ):
+            toolset = create_subagent_toolset(subagents=[config], include_general_purpose=False)
+
+            ctx = MockRunContext(deps=MockDeps())
+            await toolset.tools["task"].function(ctx, "do X", "built-here", "sync")
+
+        assert not _ask_parent_injected(agent)
+
+
 class TestToolsetFunctionsCoverage:
     """Tests to cover remaining toolset functions."""
 

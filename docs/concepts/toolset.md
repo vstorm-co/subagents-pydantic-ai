@@ -93,6 +93,13 @@ toolset = create_subagent_toolset(
 See [SubAgentConfig](types.md#subagentconfig) for full documentation of the `agent` and
 `agent_factory` fields.
 
+A caller-supplied agent (`agent` or `agent_factory`) is used exactly as given, so the
+`ask_parent` tool the default branch would attach is not compiled into it. `task`
+injects that tool at run time instead when the subagent's `can_ask_questions` allows it,
+so a pre-built or factory-built subagent asks questions on the same terms as a
+default-built one. If your factory attaches its own `ask_parent`, leave
+`can_ask_questions` off to avoid a duplicate.
+
 ## Available Tools
 
 The toolset provides these tools to your agent:

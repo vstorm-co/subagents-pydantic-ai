@@ -222,6 +222,18 @@ def _compile_subagent(
     )
 
 
+def _agent_supplied_by_caller(config: SubAgentConfig) -> bool:
+    """Whether the caller handed in a ready agent rather than letting us build one.
+
+    Both the `agent` and `agent_factory` branches of `_compile_subagent` return the
+    caller's agent as-is, so neither reaches the point where an `ask_parent` toolset
+    is appended to a freshly built `Agent`. Only the default branch does that. A
+    caller-supplied agent that honours `can_ask_questions` therefore has to have the
+    tool injected at run time instead -- see the configured branch of `task`.
+    """
+    return config.get("agent") is not None or config.get("agent_factory") is not None
+
+
 def _create_ask_parent_toolset() -> FunctionToolset[Any]:
     """Create a toolset with the `ask_parent` tool a subagent uses to reach its parent."""
     toolset: FunctionToolset[Any] = FunctionToolset(id="ask_parent")
@@ -982,7 +994,14 @@ class SubAgentToolset(FunctionToolset[Any]):
         """
         if subagent_type in self._compiled:
             subagent = self._compiled[subagent_type]
-            inject_ask_parent = False
+            # A configured subagent whose agent we built already has `ask_parent`
+            # compiled in when `can_ask_questions` allows it. One that supplied its
+            # own agent (`agent` or `agent_factory`) skipped that step, so it is
+            # injected at run time instead -- `_execute` still gates on
+            # `can_ask_questions`, so a caller-supplied agent asks only when its
+            # config opts in. Without this such a subagent could never ask, whatever
+            # its `can_ask_questions` said.
+            inject_ask_parent = _agent_supplied_by_caller(subagent.config)
         elif (registry_subagent := self.registry.get_compiled(subagent_type)) is not None:
             subagent = registry_subagent
             inject_ask_parent = True
