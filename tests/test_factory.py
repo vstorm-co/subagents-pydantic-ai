@@ -34,7 +34,7 @@ class TestCreateAgentFactoryToolset:
 
     def test_creates_toolset(self, registry: DynamicAgentRegistry):
         """Test toolset creation."""
-        toolset = create_agent_factory_toolset(registry=registry)
+        toolset = create_agent_factory_toolset(registry=registry, default_model="test")
 
         tool_names = list(toolset.tools.keys())
         assert "create_agent" in tool_names
@@ -54,6 +54,7 @@ class TestCreateAgentFactoryToolset:
         """Test that max_agents is updated in registry."""
         create_agent_factory_toolset(
             registry=registry,
+            default_model="test",
             max_agents=5,
         )
         assert registry.max_agents == 5
@@ -61,7 +62,7 @@ class TestCreateAgentFactoryToolset:
     @pytest.mark.asyncio
     async def test_create_agent_success(self, registry: DynamicAgentRegistry):
         """Test successful agent creation."""
-        toolset = create_agent_factory_toolset(registry=registry)
+        toolset = create_agent_factory_toolset(registry=registry, default_model="test")
         create_tool = toolset.tools["create_agent"]
 
         ctx = MockRunContext(deps=MockDeps())
@@ -79,9 +80,37 @@ class TestCreateAgentFactoryToolset:
         assert registry.exists("test-agent")
 
     @pytest.mark.asyncio
+    async def test_create_agent_without_a_model_or_default_is_refused(
+        self, registry: DynamicAgentRegistry
+    ):
+        """A `create_agent` call naming no model is refused when there is no default.
+
+        A tool result, not an exception: the model can name one and call again. The
+        allow-list is named in the message so it knows what it may choose from.
+        """
+        toolset = create_agent_factory_toolset(
+            registry=registry,
+            default_model=None,
+            allowed_models=["openai:gpt-4"],
+        )
+        create_tool = toolset.tools["create_agent"]
+
+        ctx = MockRunContext(deps=MockDeps())
+        result = await create_tool.function(
+            ctx,
+            name="modelless",
+            description="Names no model",
+            instructions="Do testing",
+        )
+
+        assert "no model was given and there is no default model" in result
+        assert "openai:gpt-4" in result
+        assert not registry.exists("modelless")
+
+    @pytest.mark.asyncio
     async def test_create_agent_invalid_name(self, registry: DynamicAgentRegistry):
         """Test agent creation with invalid name."""
-        toolset = create_agent_factory_toolset(registry=registry)
+        toolset = create_agent_factory_toolset(registry=registry, default_model="test")
         create_tool = toolset.tools["create_agent"]
 
         ctx = MockRunContext(deps=MockDeps())
@@ -107,7 +136,7 @@ class TestCreateAgentFactoryToolset:
     @pytest.mark.asyncio
     async def test_create_agent_duplicate(self, registry: DynamicAgentRegistry):
         """Test creating duplicate agent fails."""
-        toolset = create_agent_factory_toolset(registry=registry)
+        toolset = create_agent_factory_toolset(registry=registry, default_model="test")
         create_tool = toolset.tools["create_agent"]
 
         ctx = MockRunContext(deps=MockDeps())
@@ -170,6 +199,7 @@ class TestCreateAgentFactoryToolset:
 
         toolset = create_agent_factory_toolset(
             registry=registry,
+            default_model="test",
             capabilities_map={
                 "filesystem": mock_capability_factory,
             },
@@ -202,6 +232,7 @@ class TestCreateAgentFactoryToolset:
         """Test creating agent with invalid capability."""
         toolset = create_agent_factory_toolset(
             registry=registry,
+            default_model="test",
             capabilities_map={
                 "filesystem": lambda deps: [],
             },
@@ -230,6 +261,7 @@ class TestCreateAgentFactoryToolset:
 
         toolset = create_agent_factory_toolset(
             registry=registry,
+            default_model="test",
             toolsets_factory=mock_factory,
         )
         create_tool = toolset.tools["create_agent"]
@@ -256,7 +288,7 @@ class TestCreateAgentFactoryToolset:
     @pytest.mark.asyncio
     async def test_list_agents_empty(self, registry: DynamicAgentRegistry):
         """Test listing agents when empty."""
-        toolset = create_agent_factory_toolset(registry=registry)
+        toolset = create_agent_factory_toolset(registry=registry, default_model="test")
         list_tool = toolset.tools["list_agents"]
 
         ctx = MockRunContext(deps=MockDeps())
@@ -267,7 +299,7 @@ class TestCreateAgentFactoryToolset:
     @pytest.mark.asyncio
     async def test_list_agents_with_agents(self, registry: DynamicAgentRegistry):
         """Test listing agents when some exist."""
-        toolset = create_agent_factory_toolset(registry=registry)
+        toolset = create_agent_factory_toolset(registry=registry, default_model="test")
         create_tool = toolset.tools["create_agent"]
         list_tool = toolset.tools["list_agents"]
 
@@ -298,7 +330,7 @@ class TestCreateAgentFactoryToolset:
     @pytest.mark.asyncio
     async def test_remove_agent_success(self, registry: DynamicAgentRegistry):
         """Test removing agent successfully."""
-        toolset = create_agent_factory_toolset(registry=registry)
+        toolset = create_agent_factory_toolset(registry=registry, default_model="test")
         create_tool = toolset.tools["create_agent"]
         remove_tool = toolset.tools["remove_agent"]
 
@@ -324,7 +356,7 @@ class TestCreateAgentFactoryToolset:
     @pytest.mark.asyncio
     async def test_remove_agent_not_found(self, registry: DynamicAgentRegistry):
         """Test removing non-existent agent."""
-        toolset = create_agent_factory_toolset(registry=registry)
+        toolset = create_agent_factory_toolset(registry=registry, default_model="test")
         remove_tool = toolset.tools["remove_agent"]
 
         ctx = MockRunContext(deps=MockDeps())
@@ -336,7 +368,7 @@ class TestCreateAgentFactoryToolset:
     @pytest.mark.asyncio
     async def test_get_agent_info_success(self, registry: DynamicAgentRegistry):
         """Test getting agent info successfully."""
-        toolset = create_agent_factory_toolset(registry=registry)
+        toolset = create_agent_factory_toolset(registry=registry, default_model="test")
         create_tool = toolset.tools["create_agent"]
         info_tool = toolset.tools["get_agent_info"]
 
@@ -365,7 +397,7 @@ class TestCreateAgentFactoryToolset:
     @pytest.mark.asyncio
     async def test_get_agent_info_not_found(self, registry: DynamicAgentRegistry):
         """Test getting info for non-existent agent."""
-        toolset = create_agent_factory_toolset(registry=registry)
+        toolset = create_agent_factory_toolset(registry=registry, default_model="test")
         info_tool = toolset.tools["get_agent_info"]
 
         ctx = MockRunContext(deps=MockDeps())
@@ -377,7 +409,7 @@ class TestCreateAgentFactoryToolset:
     @pytest.mark.asyncio
     async def test_get_agent_info_long_instructions(self, registry: DynamicAgentRegistry):
         """Test getting info for agent with long instructions."""
-        toolset = create_agent_factory_toolset(registry=registry)
+        toolset = create_agent_factory_toolset(registry=registry, default_model="test")
         create_tool = toolset.tools["create_agent"]
         info_tool = toolset.tools["get_agent_info"]
 
@@ -406,7 +438,9 @@ class TestCreateAgentFactoryToolset:
     async def test_create_agent_max_reached(self):
         """Test creating agent when max limit reached."""
         registry = DynamicAgentRegistry(max_agents=1)
-        toolset = create_agent_factory_toolset(registry=registry, max_agents=1)
+        toolset = create_agent_factory_toolset(
+            registry=registry, default_model="test", max_agents=1
+        )
         create_tool = toolset.tools["create_agent"]
 
         ctx = MockRunContext(deps=MockDeps())
@@ -436,7 +470,7 @@ class TestCreateAgentFactoryToolset:
     @pytest.mark.asyncio
     async def test_create_agent_value_error(self, registry: DynamicAgentRegistry):
         """Test handling of ValueError during agent creation."""
-        toolset = create_agent_factory_toolset(registry=registry)
+        toolset = create_agent_factory_toolset(registry=registry, default_model="test")
         create_tool = toolset.tools["create_agent"]
 
         ctx = MockRunContext(deps=MockDeps())
@@ -457,7 +491,7 @@ class TestCreateAgentFactoryToolset:
     @pytest.mark.asyncio
     async def test_create_agent_generic_exception(self, registry: DynamicAgentRegistry):
         """Test handling of generic exception during agent creation."""
-        toolset = create_agent_factory_toolset(registry=registry)
+        toolset = create_agent_factory_toolset(registry=registry, default_model="test")
         create_tool = toolset.tools["create_agent"]
 
         ctx = MockRunContext(deps=MockDeps())
@@ -482,6 +516,7 @@ class TestCreateAgentFactoryToolset:
 
         toolset = create_agent_factory_toolset(
             registry=registry,
+            default_model="test",
             default_agent_factory=factory,
         )
         create_tool = toolset.tools["create_agent"]
@@ -514,6 +549,7 @@ class TestCreateAgentFactoryToolset:
 
         toolset = create_agent_factory_toolset(
             registry=registry,
+            default_model="test",
             default_agent_factory=factory,
             capabilities_map={
                 "filesystem": lambda deps: [MagicMock()],

@@ -32,7 +32,7 @@ subagents = [
     ),
 ]
 
-toolset = create_subagent_toolset(subagents=subagents)
+toolset = create_subagent_toolset(default_model="openai:gpt-4.1", subagents=subagents)
 
 agent = Agent(
     "openai:gpt-4o",
@@ -88,7 +88,7 @@ subagents = [
     ),
 ]
 
-toolset = create_subagent_toolset(subagents=subagents)
+toolset = create_subagent_toolset(default_model="openai:gpt-4.1", subagents=subagents)
 
 agent = Agent(
     "openai:gpt-4o",
@@ -156,7 +156,7 @@ subagents = [
     ),
 ]
 
-toolset = create_subagent_toolset(subagents=subagents)
+toolset = create_subagent_toolset(default_model="openai:gpt-4.1", subagents=subagents)
 
 agent = Agent(
     "openai:gpt-4o",

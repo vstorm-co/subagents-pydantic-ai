@@ -12,6 +12,7 @@ agent = Agent(
     "openai:gpt-4.1",
     capabilities=[
         SubAgentCapability(
+            default_model="openai:gpt-4.1",
             subagents=[
                 SubAgentConfig(
                     name="scraper",
@@ -118,7 +119,7 @@ subagent crash to surface as an exception in your application:
 ```python
 from subagents_pydantic_ai import create_subagent_toolset
 
-toolset = create_subagent_toolset(contain_errors=False)
+toolset = create_subagent_toolset(default_model="openai:gpt-4.1", contain_errors=False)
 ```
 
 Per-subagent overrides win over the toolset default:

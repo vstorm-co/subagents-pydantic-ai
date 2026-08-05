@@ -12,6 +12,7 @@ agent = Agent(
     "openai:gpt-4.1",
     capabilities=[
         SubAgentCapability(
+            default_model="openai:gpt-4.1",
             subagents=[
                 SubAgentConfig(
                     name="researcher",
@@ -46,7 +47,7 @@ def limits_for(ctx: RunContext[object], config: SubAgentConfig) -> UsageLimits |
     return UsageLimits(request_limit=10)
 
 
-toolset = create_subagent_toolset(usage_limits=limits_for)
+toolset = create_subagent_toolset(default_model="openai:gpt-4.1", usage_limits=limits_for)
 ```
 
 Returning `None` runs that task without explicit limits, which is how you exempt a

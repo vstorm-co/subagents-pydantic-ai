@@ -71,6 +71,7 @@ Write clean, well-documented code.
 ]
 
 toolset = create_subagent_toolset(
+    default_model="openai:gpt-4.1",
     subagents=subagents,
     toolsets_factory=my_toolsets_factory,
 )
@@ -163,6 +164,7 @@ subagents = [
 ]
 
 toolset = create_subagent_toolset(
+    default_model="openai:gpt-4.1",
     subagents=subagents,
     toolsets_factory=backend_toolsets_factory,
 )

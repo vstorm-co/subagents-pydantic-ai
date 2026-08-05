@@ -23,6 +23,7 @@ from subagents_pydantic_ai import SubAgentCapability, SubAgentConfig
 agent = Agent(
     "openai:gpt-4.1",
     capabilities=[SubAgentCapability(
+        default_model="openai:gpt-4.1",
         subagents=[
             SubAgentConfig(
                 name="researcher",
@@ -39,8 +40,8 @@ agent = Agent(
 ```python
 SubAgentCapability(
     subagents=[...],                    # Subagent configurations
-    default_model="openai:gpt-4.1",    # Default model for subagents
-    include_general_purpose=True,       # Include GP subagent (default: True)
+    default_model="openai:gpt-4.1",    # Fallback model; no implicit default
+    include_general_purpose=True,       # GP subagent (default True; needs default_model or a factory)
     max_nesting_depth=0,                # Allow nested subagents (0 = no nesting)
     toolsets_factory=my_factory,        # Custom toolsets for subagents
     registry=my_registry,              # Dynamic agent registry
@@ -74,6 +75,7 @@ in one call. The specialist is not registered in the dynamic agent registry.
 
 ```python
 SubAgentCapability(
+    default_model="openai:gpt-4.1",
     delegation_configuration="persisted_and_oneshot",
     allowed_models=["openai:gpt-4.1"],
     capabilities_map={"filesystem": lambda deps: [create_fs_toolset(deps.backend)]},
@@ -103,7 +105,7 @@ def limits_for(ctx: RunContext, config: SubAgentConfig) -> UsageLimits | None:
         return UsageLimits(request_limit=20)
     return UsageLimits(request_limit=5)
 
-cap = SubAgentCapability(subagents=[...], usage_limits=limits_for)
+cap = SubAgentCapability(default_model="openai:gpt-4.1", subagents=[...], usage_limits=limits_for)
 ```
 
 ## How It Works
@@ -130,7 +132,7 @@ When you pass `SubAgentCapability` to an agent, pydantic-ai calls:
 Access the task manager for monitoring background tasks:
 
 ```python
-cap = SubAgentCapability(subagents=[...])
+cap = SubAgentCapability(default_model="openai:gpt-4.1", subagents=[...])
 agent = Agent("openai:gpt-4.1", capabilities=[cap])
 
 # After agent runs, check active tasks
@@ -150,7 +152,7 @@ agent = Agent(
     "openai:gpt-4.1",
     capabilities=[
         TodoCapability(enable_subtasks=True),
-        SubAgentCapability(subagents=[...]),
+        SubAgentCapability(default_model="openai:gpt-4.1", subagents=[...]),
     ],
 )
 ```
@@ -170,6 +172,7 @@ from subagents_pydantic_ai import SubAgentCapability, SubAgentConfig
 agent = Agent(
     "openai:gpt-4.1",
     capabilities=[SubAgentCapability(
+        default_model="openai:gpt-4.1",
         subagents=[
             # Pre-built agent
             SubAgentConfig(

@@ -72,6 +72,7 @@ from subagents_pydantic_ai import SubAgentCapability, SubAgentConfig
 agent = Agent(
     "openai:gpt-4.1",
     capabilities=[SubAgentCapability(
+        default_model="openai:gpt-4.1",
         subagents=[
             SubAgentConfig(
                 name="researcher",
@@ -93,7 +94,8 @@ result = await agent.run("Research Python async patterns and write a blog post a
 `SubAgentCapability` automatically:
 - Registers all delegation tools (`task`, `check_task`, `answer_subagent`, `list_active_tasks`, etc.)
 - Injects dynamic system prompt listing available subagents
-- Includes a general-purpose subagent by default
+- Includes a general-purpose subagent when given a `default_model` or a
+  `default_agent_factory` to build it from
 
 ### Alternative: Toolset API
 
@@ -104,6 +106,7 @@ from pydantic_ai import Agent
 from subagents_pydantic_ai import create_subagent_toolset, SubAgentConfig
 
 toolset = create_subagent_toolset(
+    default_model="openai:gpt-4.1",
     subagents=[
         SubAgentConfig(name="researcher", description="Researches topics", instructions="..."),
     ],
@@ -163,6 +166,7 @@ def my_toolsets_factory(deps):
     ]
 
 toolset = create_subagent_toolset(
+    default_model="openai:gpt-4.1",
     subagents=subagents,
     toolsets_factory=my_toolsets_factory,
 )
@@ -184,6 +188,7 @@ agent = Agent(
     "openai:gpt-4o",
     deps_type=Deps,
     toolsets=[create_subagent_toolset(
+        default_model="openai:gpt-4o",
         registry=registry,
         delegation_configuration="persisted",
         allowed_models=["openai:gpt-4o", "openai:gpt-4o-mini"],
@@ -212,6 +217,7 @@ Async task lifecycle tools remain available in every mode. One-shot specialists 
 from subagents_pydantic_ai import create_subagent_toolset
 
 toolset = create_subagent_toolset(
+    default_model="openai:gpt-4o",
     delegation_configuration="persisted_and_oneshot",
     allowed_models=["openai:gpt-4o", "openai:gpt-4o-mini"],
     capabilities_map={
@@ -291,7 +297,7 @@ configs = [spec.to_config() for spec in specs]
 
 # Use with capability
 agent = Agent("openai:gpt-4.1", capabilities=[
-    SubAgentCapability(subagents=configs),
+    SubAgentCapability(default_model="openai:gpt-4.1", subagents=configs),
 ])
 ```
 

@@ -23,6 +23,7 @@ agent = Agent(
     "openai:gpt-4.1",
     capabilities=[
         SubAgentCapability(
+            default_model="openai:gpt-4.1",
             subagents=[
                 SubAgentConfig(
                     name="researcher",
@@ -62,6 +63,7 @@ def handler_for(ctx: RunContext[Any], config: SubAgentConfig, task_id: str) -> A
 
 
 toolset = create_subagent_toolset(
+    default_model="openai:gpt-4.1",
     subagents=subagents,
     event_stream_handler_factory=handler_for,
 )
@@ -99,6 +101,7 @@ a configured one, with no extra wiring.
 
 ```python
 toolset = create_subagent_toolset(
+    default_model="openai:gpt-4.1",
     delegation_configuration="persisted_and_oneshot",
     allowed_models=["openai:gpt-4o-mini"],
     event_stream_handler_factory=handler_for,

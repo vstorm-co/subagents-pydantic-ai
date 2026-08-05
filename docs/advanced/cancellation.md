@@ -197,7 +197,7 @@ the event loop. A leaked task that is reported is recoverable; a `finally` that
 never finishes is not.
 
 ```python
-SubAgentCapability(subagents=subagents, cancel_grace_seconds=30.0)
+SubAgentCapability(default_model="openai:gpt-4.1", subagents=subagents, cancel_grace_seconds=30.0)
 ```
 
 Raise it when subagents do real cleanup on the way out; lower it when a fast

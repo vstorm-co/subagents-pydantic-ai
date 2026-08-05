@@ -9,6 +9,7 @@ from pydantic_ai import Agent
 from subagents_pydantic_ai import SubAgentCapability, SubAgentConfig
 
 capability = SubAgentCapability(
+    default_model="openai:gpt-4.1",
     subagents=[
         SubAgentConfig(
             name="researcher",
@@ -62,7 +63,7 @@ whose handles were already evicted by `max_task_handles`:
 ```python
 from subagents_pydantic_ai import create_subagent_toolset
 
-toolset = create_subagent_toolset(max_task_handles=500)
+toolset = create_subagent_toolset(default_model="openai:gpt-4.1", max_task_handles=500)
 
 totals = toolset.get_total_usage()
 print(totals["input_tokens"], totals["output_tokens"], totals["requests"])
@@ -103,7 +104,7 @@ from subagents_pydantic_ai import SubAgentCapability
 logfire.configure()
 logfire.instrument_pydantic_ai()
 
-capability = SubAgentCapability()
+capability = SubAgentCapability(default_model="openai:gpt-4.1")
 agent = Agent("openai:gpt-4.1", capabilities=[capability])
 
 await agent.run("Delegate something")
@@ -151,6 +152,7 @@ Two limits keep a long-running orchestrator flat:
 
 ```python
 toolset = create_subagent_toolset(
+    default_model="openai:gpt-4.1",
     max_task_handles=500,  # finished handles retained for status queries
     max_chat_traces=100,  # conversations that a chat_trace_id can still resume
 )

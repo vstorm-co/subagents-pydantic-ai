@@ -12,6 +12,7 @@ from subagents_pydantic_ai import SubAgentCapability, SubAgentConfig
 agent = Agent(
     "openai:gpt-4.1",
     capabilities=[SubAgentCapability(
+        default_model="openai:gpt-4.1",
         subagents=[
             SubAgentConfig(
                 name="researcher",
@@ -48,6 +49,7 @@ Allow subagents to spawn their own subagents:
 agent = Agent(
     "openai:gpt-4.1",
     capabilities=[SubAgentCapability(
+        default_model="openai:gpt-4.1",
         subagents=[...],
         max_nesting_depth=2,  # Subagents can nest 2 levels deep
     )],
@@ -114,7 +116,7 @@ configs = [
     SubAgentConfig(name="researcher", description="Researches topics", instructions="..."),
 ]
 
-toolset = create_subagent_toolset(subagents=configs)
+toolset = create_subagent_toolset(default_model="openai:gpt-4.1", subagents=configs)
 agent = Agent(
     "openai:gpt-4.1",
     toolsets=[toolset],

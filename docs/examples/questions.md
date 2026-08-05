@@ -40,7 +40,7 @@ Wait for the answer before proceeding.
     ),
 ]
 
-toolset = create_subagent_toolset(subagents=subagents)
+toolset = create_subagent_toolset(default_model="openai:gpt-4.1", subagents=subagents)
 
 agent = Agent(
     "openai:gpt-4o",
@@ -114,7 +114,7 @@ Ask questions using ask_parent().
     ),
 ]
 
-toolset = create_subagent_toolset(subagents=subagents)
+toolset = create_subagent_toolset(default_model="openai:gpt-4.1", subagents=subagents)
 
 agent = Agent(
     "openai:gpt-4o",

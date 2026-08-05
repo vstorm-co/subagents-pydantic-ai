@@ -77,6 +77,7 @@ Override default tool descriptions for better LLM behavior:
 
 ```python
 toolset = create_subagent_toolset(
+    default_model="openai:gpt-4.1",
     subagents=subagents,
     descriptions={
         "task": "Assign a task to a specialized subagent",
@@ -97,6 +98,7 @@ def my_toolsets_factory(deps):
     return [create_console_toolset()]
 
 toolset = create_subagent_toolset(
+    default_model="openai:gpt-4.1",
     subagents=subagents,
     toolsets_factory=my_toolsets_factory,
 )
@@ -117,8 +119,9 @@ agent = Agent(
     "openai:gpt-4o",
     deps_type=Deps,
     toolsets=[
-        create_subagent_toolset(subagents=subagents),
+        create_subagent_toolset(default_model="openai:gpt-4.1", subagents=subagents),
         create_agent_factory_toolset(
+            default_model="openai:gpt-4.1",
             registry=registry,
             allowed_models=["openai:gpt-4o", "openai:gpt-4o-mini"],
             max_agents=5,

@@ -49,6 +49,7 @@ from subagents_pydantic_ai import SubAgentCapability, SubAgentConfig
 agent = Agent(
     "openai:gpt-4.1",
     capabilities=[SubAgentCapability(
+        default_model="openai:gpt-4.1",
         subagents=[
             SubAgentConfig(
                 name="researcher",
@@ -63,7 +64,8 @@ result = await agent.run("Research Python async patterns")
 ```
 
 `SubAgentCapability` automatically registers all tools and injects a dynamic system
-prompt listing available subagents. A general-purpose subagent is included by default.
+prompt listing available subagents. A general-purpose subagent is included when a
+`default_model` or `default_agent_factory` is given to build it from.
 
 ### Alternative: Toolset API
 
@@ -72,6 +74,7 @@ from pydantic_ai import Agent
 from subagents_pydantic_ai import create_subagent_toolset, SubAgentConfig
 
 toolset = create_subagent_toolset(
+    default_model="openai:gpt-4.1",
     subagents=[SubAgentConfig(name="researcher", description="...", instructions="...")],
 )
 agent = Agent("openai:gpt-4.1", toolsets=[toolset])

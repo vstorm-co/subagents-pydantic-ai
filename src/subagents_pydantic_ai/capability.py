@@ -11,6 +11,7 @@ Example:
     agent = Agent(
         "openai:gpt-4.1",
         capabilities=[SubAgentCapability(
+            default_model="openai:gpt-4.1",
             subagents=[
                 SubAgentConfig(
                     name="researcher",
@@ -62,6 +63,7 @@ class SubAgentCapability(AbstractCapability[Any]):
         from subagents_pydantic_ai import SubAgentCapability, SubAgentConfig
 
         cap = SubAgentCapability(
+            default_model="openai:gpt-4.1",
             subagents=[
                 SubAgentConfig(
                     name="researcher",
@@ -75,8 +77,16 @@ class SubAgentCapability(AbstractCapability[Any]):
 
     Attributes:
         subagents: List of subagent configurations.
-        default_model: Default model for subagents.
-        include_general_purpose: Include general-purpose subagent.
+        default_model: Default model for subagents that name none, for the
+            general-purpose subagent, and for a dynamic call that names no model.
+            There is no implicit default: leave it unset and each of those is
+            refused rather than run on a model the library picked, which resolves
+            whatever provider credential the process environment happens to hold.
+        include_general_purpose: Include general-purpose subagent. Needs
+            `default_model` or `default_agent_factory` to build it from — see
+            `Raises`. A `default_agent_factory` is what builds it when present,
+            so a consumer that resolves a model, a credential and a budget per
+            caller gets a delegate it can account for.
         max_nesting_depth: Max depth for nested subagents.
         toolsets_factory: Factory for subagent toolsets.
         registry: Dynamic agent registry.
@@ -89,9 +99,10 @@ class SubAgentCapability(AbstractCapability[Any]):
             `Raises`.
         allowed_models: Optional model allow-list for dynamic specialists.
         capabilities_map: Optional capability factories for dynamic specialists.
-        default_agent_factory: Optional custom agent factory for dynamic specialists.
-            Do not attach an `ask_parent` toolset in the factory; the toolset
-            injects it at run time when needed.
+        default_agent_factory: Optional custom agent factory for dynamic
+            specialists, and for the general-purpose subagent when
+            `include_general_purpose` is on. Do not attach an `ask_parent` toolset
+            in the factory; the toolset injects it at run time when needed.
         max_agents: Maximum number of persistent dynamic agents, applied to the
             registry the toolset creates for `create_agent`. Ignored when
             `registry` is set — that registry keeps its own `max_agents`.
@@ -121,11 +132,15 @@ class SubAgentCapability(AbstractCapability[Any]):
             self-contradictory — an invalid `delegation_configuration`, one
             whose hidden tools make `subagents`, `registry`, `allowed_models`,
             `capabilities_map`, or `default_agent_factory` unreachable, or both
-            an `event_stream_handler` and an `event_stream_handler_factory`.
+            an `event_stream_handler` and an `event_stream_handler_factory` —
+            and when a subagent has no model to run on: `include_general_purpose`
+            with neither `default_model` nor `default_agent_factory`, or a
+            `subagents` entry naming no `model` and supplying no `agent` or
+            `agent_factory` while `default_model` is unset.
     """
 
     subagents: list[SubAgentConfig] | None = None
-    default_model: Any = "openai:gpt-4.1"
+    default_model: Any = None
     include_general_purpose: bool = True
     max_nesting_depth: int = 0
     toolsets_factory: ToolsetFactory | None = None

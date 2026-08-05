@@ -15,7 +15,7 @@ subagents = [
     ),
 ]
 
-toolset = create_subagent_toolset(subagents=subagents)
+toolset = create_subagent_toolset(default_model="openai:gpt-4.1", subagents=subagents)
 ```
 
 ## Factory Parameters
@@ -23,9 +23,9 @@ toolset = create_subagent_toolset(subagents=subagents)
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `subagents` | `list[SubAgentConfig]` | `[]` | List of subagent configurations |
-| `default_model` | `str \| None` | `None` | Default model for subagents |
+| `default_model` | `str \| Model \| None` | `None` | Model a subagent falls back on when it names none. No implicit default: when unset, a subagent or dynamic call naming no model is refused rather than run on a library-chosen one |
 | `toolsets_factory` | `Callable` | `None` | Factory to create toolsets for subagents |
-| `include_general_purpose` | `bool` | `True` | Include the general-purpose subagent |
+| `include_general_purpose` | `bool` | `True` | Include the general-purpose subagent. Needs a `default_model` or `default_agent_factory` to build it from; construction raises without one |
 | `max_nesting_depth` | `int` | `0` | Maximum subagent nesting depth |
 | `registry` | `DynamicAgentRegistry \| None` | `None` | Registry for dynamically created agents |
 | `descriptions` | `dict[str, str] \| None` | `None` | Override default tool descriptions by tool name |
@@ -68,6 +68,7 @@ from pydantic_ai import Agent
 from subagents_pydantic_ai import create_subagent_toolset, SubAgentConfig
 
 toolset = create_subagent_toolset(
+    default_model="openai:gpt-4.1",
     subagents=[
         SubAgentConfig(
             name="custom",
@@ -380,6 +381,7 @@ def my_toolsets_factory(deps):
     ]
 
 toolset = create_subagent_toolset(
+    default_model="openai:gpt-4.1",
     subagents=subagents,
     toolsets_factory=my_toolsets_factory,
 )
@@ -394,12 +396,14 @@ Control how deep subagents can nest:
 ```python
 # Allow subagents to have their own subagents (2 levels deep)
 toolset = create_subagent_toolset(
+    default_model="openai:gpt-4.1",
     subagents=subagents,
     max_nesting_depth=2,
 )
 
 # No nesting - subagents can't delegate
 toolset = create_subagent_toolset(
+    default_model="openai:gpt-4.1",
     subagents=subagents,
     max_nesting_depth=0,
 )
@@ -408,11 +412,14 @@ toolset = create_subagent_toolset(
 ## General-purpose subagent
 
 A `general-purpose` subagent is added by default, so the model has somewhere to
-send work that matches none of your specialists. Turn it off when you want the
-model restricted to the subagents you defined:
+send work that matches none of your specialists. It is built from `default_model`
+(or from a `default_agent_factory`), so one of those must be set while it is on --
+construction raises otherwise. Turn it off when you want the model restricted to
+the subagents you defined:
 
 ```python
 toolset = create_subagent_toolset(
+    default_model="openai:gpt-4.1",
     subagents=subagents,
     include_general_purpose=False,
 )
@@ -423,6 +430,7 @@ with whatever instructions you want:
 
 ```python
 toolset = create_subagent_toolset(
+    default_model="openai:gpt-4.1",
     subagents=[
         *subagents,
         SubAgentConfig(
@@ -441,6 +449,7 @@ Override the default tool descriptions to better guide LLM behavior. This is use
 
 ```python
 toolset = create_subagent_toolset(
+    default_model="openai:gpt-4.1",
     subagents=subagents,
     descriptions={
         "task": "Assign a task to a specialized subagent",

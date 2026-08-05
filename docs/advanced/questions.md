@@ -105,6 +105,7 @@ async def ask_user(question: str) -> str:
     return input(f"Subagent asks: {question}\n> ")
 
 toolset = create_subagent_toolset(
+    default_model="openai:gpt-4.1",
     subagents=subagents,
     ask_user=ask_user,
 )
@@ -125,7 +126,7 @@ the same argument and forwards it:
 ```python
 from subagents_pydantic_ai import SubAgentCapability
 
-cap = SubAgentCapability(subagents=subagents, ask_user=ask_user)
+cap = SubAgentCapability(default_model="openai:gpt-4.1", subagents=subagents, ask_user=ask_user)
 ```
 
 ### Async Mode
@@ -203,7 +204,7 @@ Always ask before making assumptions about:
     ),
 ]
 
-toolset = create_subagent_toolset(subagents=subagents)
+toolset = create_subagent_toolset(default_model="openai:gpt-4.1", subagents=subagents)
 ```
 
 ## The `answer_subagent` Tool
@@ -288,7 +289,7 @@ Use ask_parent() for each clarification.
     ),
 ]
 
-toolset = create_subagent_toolset(subagents=subagents)
+toolset = create_subagent_toolset(default_model="openai:gpt-4.1", subagents=subagents)
 
 agent = Agent(
     "openai:gpt-4o",

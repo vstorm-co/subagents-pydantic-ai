@@ -12,6 +12,7 @@ agent = Agent(
     "openai:gpt-4.1",
     capabilities=[
         SubAgentCapability(
+            default_model="openai:gpt-4.1",
             subagents=[
                 SubAgentConfig(
                     name="analyst",
@@ -78,7 +79,7 @@ Histories are kept in memory, bounded by an LRU:
 ```python
 from subagents_pydantic_ai import create_subagent_toolset
 
-toolset = create_subagent_toolset(max_chat_traces=100)
+toolset = create_subagent_toolset(default_model="openai:gpt-4.1", max_chat_traces=100)
 ```
 
 Reading a trace refreshes its recency, so a conversation the orchestrator keeps

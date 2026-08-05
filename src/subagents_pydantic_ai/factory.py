@@ -25,7 +25,7 @@ from subagents_pydantic_ai.types import ToolsetFactory
 def create_agent_factory_toolset(
     registry: DynamicAgentRegistry,
     allowed_models: list[str] | None = None,
-    default_model: str | Model = "openai:gpt-4.1",
+    default_model: str | Model | None = None,
     max_agents: int = 10,
     toolsets_factory: ToolsetFactory | None = None,
     capabilities_map: dict[str, CapabilityFactory] | None = None,
@@ -42,7 +42,11 @@ def create_agent_factory_toolset(
         registry: Registry to store created agents.
         allowed_models: List of allowed model names. If None, any model
             is allowed.
-        default_model: Default model to use when not specified.
+        default_model: Model to use for a `create_agent` call that names none.
+            There is no implicit default: leave it unset and such a call is
+            refused, rather than creating an agent on a model the library picked
+            and therefore on whatever provider credential the process environment
+            happens to hold.
         max_agents: Maximum number of dynamic agents allowed. This is written
             onto `registry.max_agents`, so it wins over whatever cap the
             registry was constructed with — pass it explicitly when the limit
@@ -105,12 +109,18 @@ def create_agent_factory_toolset(
     # decorator: an `f"""..."""` as the first statement of the function body is
     # NOT a docstring (`__doc__` stays `None`) — it would be evaluated and
     # discarded on every call, throwing away the computed models/capabilities.
+    # A model told there is a default will happily omit one, so only say so when
+    # the consumer named it.
+    default_desc = (
+        f"Default model when none is given: {default_model}."
+        if default_model is not None
+        else "There is no default model: name the model to use in every call."
+    )
     create_agent_description = (
         "Create a new specialized agent at runtime.\n\n"
         "Creates a new agent with the specified configuration. The agent "
         "will be available for delegation via the task tool.\n\n"
-        f"{models_desc}\n{caps_desc}\n\n"
-        f"Default model when none is given: {default_model}."
+        f"{models_desc}\n{caps_desc}\n\n{default_desc}"
     )
 
     @toolset.tool(description=create_agent_description)
@@ -145,6 +155,17 @@ def create_agent_factory_toolset(
             return f"Error: Agent '{name}' already exists"
 
         actual_model = model or default_model
+        if actual_model is None:
+            # A tool result rather than an exception: the model named nothing and
+            # can name something on its next turn. The fallback this replaces put
+            # the agent on a model of the library's choosing, and so on whichever
+            # provider credential the environment held.
+            allowed = f" Allowed models: {', '.join(allowed_models)}." if allowed_models else ""
+            return (
+                "Error: no model was given and there is no default model. "
+                f"Name the model to use and try again.{allowed}"
+            )
+
         result = build_dynamic_agent(
             ctx,
             name=name,
@@ -227,7 +248,7 @@ def create_agent_factory_toolset(
         info = [
             f"Agent: {name}",
             f"Description: {config['description']}",
-            f"Model: {config.get('model', default_model)}",
+            f"Model: {config.get('model') or default_model or 'not configured'}",
             f"Can ask questions: {config.get('can_ask_questions', True)}",
             "",
             "Instructions:",

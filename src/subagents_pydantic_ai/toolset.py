@@ -151,19 +151,45 @@ def _already_finished(task_id: str, handle: TaskHandle | None) -> str:
     )
 
 
-def _create_general_purpose_config() -> SubAgentConfig:
-    """Create the default general-purpose subagent config."""
-    return SubAgentConfig(
+def _create_general_purpose_config(
+    default_model: str | Model | None,
+    agent_factory: AgentFactory | None,
+) -> SubAgentConfig:
+    """Create the default general-purpose subagent config.
+
+    Both arguments are the toolset's, carried onto the config so that this
+    delegate is built the same way every other one is -- through
+    `_compile_subagent`, from the consumer's own factory when there is one. It
+    used to carry neither, so it was always compiled from `default_model`: a
+    deployment that resolves a model per tenant (its own credential, its own
+    budget) has no single `default_model` to give, and the library's own fallback
+    put this delegate on whatever provider key happened to be in the process
+    environment. The toolset refuses to build it when neither is available, so at
+    least one of the two is always set here.
+
+    Args:
+        default_model: The toolset's default model, written onto the config so a
+            factory reading `config["model"]` sees the same value the library
+            would have compiled from. `None` when the consumer supplied none.
+        agent_factory: The toolset's `default_agent_factory`, if any. Takes
+            priority over `model` in `_compile_subagent`.
+    """
+    config = SubAgentConfig(
         name="general-purpose",
         description=DEFAULT_GENERAL_PURPOSE_DESCRIPTION,
         instructions=SUBAGENT_SYSTEM_PROMPT,
         can_ask_questions=True,
     )
+    if default_model is not None:
+        config["model"] = default_model
+    if agent_factory is not None:
+        config["agent_factory"] = agent_factory
+    return config
 
 
 def _compile_subagent(
     config: SubAgentConfig,
-    default_model: str | Model,
+    default_model: str | Model | None,
 ) -> CompiledSubAgent:
     """Compile a subagent configuration into a ready-to-use agent.
 
@@ -174,10 +200,17 @@ def _compile_subagent(
 
     Args:
         config: The subagent configuration.
-        default_model: Default model to use if not specified in config.
+        default_model: Default model to use if not specified in config. `None`
+            means the consumer named none, and a config that supplies no model,
+            agent or factory of its own is then refused rather than compiled
+            against a model the library picked.
 
     Returns:
         CompiledSubAgent with agent instance.
+
+    Raises:
+        ValueError: If nothing in the config or `default_model` says which model
+            this subagent runs on.
     """
     prebuilt = config.get("agent")
     if prebuilt is not None:
@@ -197,6 +230,17 @@ def _compile_subagent(
             config=config,
         )
 
+    model = config.get("model", default_model)
+    if model is None:
+        raise ValueError(
+            f"Subagent '{config['name']}' says nothing about which model it runs on: "
+            "its config sets no 'model', 'agent' or 'agent_factory', and the toolset "
+            "was given no 'default_model'. Name a model, or build the agent yourself. "
+            "The library used to fall back on a model of its own choosing, which "
+            "resolves whatever provider credential is in the process environment -- "
+            "in a multi-tenant deployment, not the caller's."
+        )
+
     # `can_ask_questions=False` has to remove the tool, not just tell the subagent
     # not to use it. `_execute` already honours the flag when it injects
     # `ask_parent` at run time; leaving it out here meant a configured subagent
@@ -208,7 +252,7 @@ def _compile_subagent(
     toolsets.extend(config.get("toolsets") or [])
 
     agent: Agent[Any, str] = Agent(
-        config.get("model", default_model),
+        model,
         system_prompt=config["instructions"],
         toolsets=toolsets,
         **config.get("agent_kwargs", {}),
@@ -329,6 +373,7 @@ class SubAgentToolset(FunctionToolset[Any]):
         from subagents_pydantic_ai import SubAgentConfig, SubAgentToolset
 
         toolset = SubAgentToolset(
+            default_model="openai:gpt-4.1",
             subagents=[
                 SubAgentConfig(
                     name="researcher",
@@ -344,7 +389,7 @@ class SubAgentToolset(FunctionToolset[Any]):
     def __init__(
         self,
         subagents: list[SubAgentConfig] | None = None,
-        default_model: str | Model = "openai:gpt-4.1",
+        default_model: str | Model | None = None,
         toolsets_factory: ToolsetFactory | None = None,
         include_general_purpose: bool = True,
         max_nesting_depth: int = 0,
@@ -373,6 +418,8 @@ class SubAgentToolset(FunctionToolset[Any]):
             delegation_configuration=delegation_configuration,
             subagents=subagents,
             registry=registry,
+            include_general_purpose=include_general_purpose,
+            default_model=default_model,
             allowed_models=allowed_models,
             capabilities_map=capabilities_map,
             default_agent_factory=default_agent_factory,
@@ -413,8 +460,8 @@ class SubAgentToolset(FunctionToolset[Any]):
         self._evicted_usage = {"input_tokens": 0, "output_tokens": 0, "requests": 0}
 
         configs: list[SubAgentConfig] = list(subagents) if subagents else []
-        if include_general_purpose and self._expose_task:
-            configs.append(_create_general_purpose_config())
+        if self._general_purpose:
+            configs.append(_create_general_purpose_config(default_model, default_agent_factory))
         self._compiled: dict[str, CompiledSubAgent] = {
             config["name"]: _compile_subagent(config, default_model) for config in configs
         }
@@ -429,6 +476,8 @@ class SubAgentToolset(FunctionToolset[Any]):
         delegation_configuration: DelegationConfiguration,
         subagents: list[SubAgentConfig] | None,
         registry: DynamicAgentRegistry | None,
+        include_general_purpose: bool,
+        default_model: str | Model | None,
         allowed_models: list[str] | None,
         capabilities_map: dict[str, CapabilityFactory] | None,
         default_agent_factory: AgentFactory | None,
@@ -457,37 +506,32 @@ class SubAgentToolset(FunctionToolset[Any]):
             )
 
         self._delegation_configuration = delegation_configuration
+        # Asking for the delegate without the tool that reaches it is not a
+        # contradiction worth raising over -- `task` is what names subagents, so
+        # a mode that hides it hides this one too, and always has.
+        self._general_purpose = include_general_purpose and self._expose_task
 
-        if not self._expose_task:
-            if subagents:
-                raise ValueError(
-                    f"delegation_configuration={delegation_configuration!r} cannot be combined "
-                    "with non-empty subagents; configured subagents would be unreachable "
-                    "without the task tool. Omit subagents, or use a mode that exposes task."
-                )
-            if registry is not None:
-                raise ValueError(
-                    f"delegation_configuration={delegation_configuration!r} cannot be combined "
-                    "with a registry; registry-backed agents are only reachable through the "
-                    "task tool. Omit registry, or use a mode that exposes task."
-                )
+        if self._general_purpose and default_model is None and default_agent_factory is None:
+            raise ValueError(
+                "include_general_purpose=True needs something to build the general-purpose "
+                "subagent from, and neither 'default_model' nor 'default_agent_factory' was "
+                "given. The library used to compile it from a model of its own choosing, "
+                "which resolves whatever provider credential is in the process environment: "
+                "on a deployment holding no such key the build raises, and on one that has "
+                "it in its environment a caller's work runs on a credential that is not "
+                "theirs. Pass 'default_model' to say which model this delegate runs on, pass "
+                "'default_agent_factory' to build it yourself, or set "
+                "include_general_purpose=False."
+            )
 
-        if not self._expose_create_agent and not self._expose_delegate:
-            unreachable = [
-                name
-                for name, value in (
-                    ("allowed_models", allowed_models),
-                    ("capabilities_map", capabilities_map),
-                    ("default_agent_factory", default_agent_factory),
-                )
-                if value is not None
-            ]
-            if unreachable:
-                raise ValueError(
-                    f"delegation_configuration={delegation_configuration!r} exposes no "
-                    f"dynamic-agent tool, so {', '.join(unreachable)} would be ignored. "
-                    "Use 'persisted', 'persisted_and_oneshot', or 'oneshot_only'."
-                )
+        self._reject_unreachable_configuration(
+            delegation_configuration=delegation_configuration,
+            subagents=subagents,
+            registry=registry,
+            allowed_models=allowed_models,
+            capabilities_map=capabilities_map,
+            default_agent_factory=default_agent_factory,
+        )
 
         if max_result_chars is not None and max_result_chars < 0:
             raise ValueError(f"max_result_chars must be >= 0 or None, got {max_result_chars}")
@@ -521,6 +565,54 @@ class SubAgentToolset(FunctionToolset[Any]):
         if cancel_grace_seconds <= 0:
             raise ValueError(f"cancel_grace_seconds must be > 0, got {cancel_grace_seconds}")
 
+    def _reject_unreachable_configuration(
+        self,
+        *,
+        delegation_configuration: DelegationConfiguration,
+        subagents: list[SubAgentConfig] | None,
+        registry: DynamicAgentRegistry | None,
+        allowed_models: list[str] | None,
+        capabilities_map: dict[str, CapabilityFactory] | None,
+        default_agent_factory: AgentFactory | None,
+    ) -> None:
+        """Reject configuration meant for a tool the chosen mode does not expose.
+
+        Reads the `_expose_*` and `_general_purpose` flags `_validate` has already
+        set. A mode that hides `task` hides the subagents and registry it reaches;
+        a mode that exposes no dynamic-agent tool leaves the arguments only those
+        tools read with nowhere to take effect.
+        """
+        if not self._expose_task:
+            if subagents:
+                raise ValueError(
+                    f"delegation_configuration={delegation_configuration!r} cannot be combined "
+                    "with non-empty subagents; configured subagents would be unreachable "
+                    "without the task tool. Omit subagents, or use a mode that exposes task."
+                )
+            if registry is not None:
+                raise ValueError(
+                    f"delegation_configuration={delegation_configuration!r} cannot be combined "
+                    "with a registry; registry-backed agents are only reachable through the "
+                    "task tool. Omit registry, or use a mode that exposes task."
+                )
+
+        if not self._expose_create_agent and not self._expose_delegate:
+            candidates: list[tuple[str, Any]] = [
+                ("allowed_models", allowed_models),
+                ("capabilities_map", capabilities_map),
+            ]
+            # `default_agent_factory` also builds the general-purpose delegate, so
+            # it is only unread when that delegate is not being built either.
+            if not self._general_purpose:
+                candidates.append(("default_agent_factory", default_agent_factory))
+            unreachable = [name for name, value in candidates if value is not None]
+            if unreachable:
+                raise ValueError(
+                    f"delegation_configuration={delegation_configuration!r} exposes no "
+                    f"dynamic-agent tool, so {', '.join(unreachable)} would be ignored. "
+                    "Use 'persisted', 'persisted_and_oneshot', or 'oneshot_only'."
+                )
+
     @property
     def _expose_create_agent(self) -> bool:
         return self._delegation_configuration in {"persisted", "persisted_and_oneshot"}
@@ -544,10 +636,14 @@ class SubAgentToolset(FunctionToolset[Any]):
             if self._capabilities_map
             else "No predefined capabilities available"
         )
-        dynamic_agent_desc = (
-            f"{models_desc}\n{caps_desc}\n\n"
+        # A model that is told there is a default will happily omit one. There is
+        # no default to omit unless the consumer named it, so say which it is.
+        default_desc = (
             f"Default model when none is given: {self._default_model}."
+            if self._default_model is not None
+            else "There is no default model: name the model to use in every call."
         )
+        dynamic_agent_desc = f"{models_desc}\n{caps_desc}\n\n{default_desc}"
 
         if self._expose_create_agent:
             self.add_function(
@@ -596,6 +692,24 @@ class SubAgentToolset(FunctionToolset[Any]):
     def _describe(self, tool_name: str) -> str:
         """The caller's description override for a tool, or the built-in default."""
         return self._descriptions.get(tool_name, _DEFAULT_TOOL_DESCRIPTIONS[tool_name])
+
+    def _refuse_without_model(self) -> str:
+        """Refuse a dynamic-agent call that named no model when there is no default.
+
+        A tool result rather than an exception, like every other refusal these two
+        tools make: the model named nothing, and it can name something and call
+        again. What it replaces is worse than a refusal -- the library filled the
+        gap with a model of its own choosing, so a specialist nobody chose a
+        provider for ran on whichever provider credential the process environment
+        happened to hold.
+        """
+        allowed = (
+            f" Allowed models: {', '.join(self._allowed_models)}." if self._allowed_models else ""
+        )
+        return (
+            "Error: no model was given and there is no default model. "
+            f"Name the model to use and try again.{allowed}"
+        )
 
     # -- observability surface -------------------------------------------------
 
@@ -935,6 +1049,9 @@ class SubAgentToolset(FunctionToolset[Any]):
             return f"Error: Agent '{name}' already exists"
 
         actual_model = model or self._default_model
+        if actual_model is None:
+            return self._refuse_without_model()
+
         result = build_dynamic_agent(
             ctx,
             name=name,
@@ -1064,6 +1181,10 @@ class SubAgentToolset(FunctionToolset[Any]):
             requires_user_context: Whether task needs ongoing user interaction.
             may_need_clarification: Whether task might need clarifying questions.
         """
+        chosen_model = model or self._default_model
+        if chosen_model is None:
+            return self._refuse_without_model()
+
         task_id = uuid.uuid4().hex[:8]
         agent_description = description[:120] or "Ephemeral specialist"
 
@@ -1072,7 +1193,7 @@ class SubAgentToolset(FunctionToolset[Any]):
             name=name,
             description=agent_description,
             instructions=instructions,
-            model=model or self._default_model,
+            model=chosen_model,
             can_ask_questions=can_ask_questions,
             capabilities=capabilities,
             allowed_models=self._allowed_models,
@@ -1340,7 +1461,7 @@ class SubAgentToolset(FunctionToolset[Any]):
 
 def create_subagent_toolset(
     subagents: list[SubAgentConfig] | None = None,
-    default_model: str | Model = "openai:gpt-4.1",
+    default_model: str | Model | None = None,
     toolsets_factory: ToolsetFactory | None = None,
     include_general_purpose: bool = True,
     max_nesting_depth: int = 0,
@@ -1382,11 +1503,20 @@ def create_subagent_toolset(
     Args:
         subagents: List of subagent configurations. If None, only
             general-purpose subagent will be available.
-        default_model: Default model for subagents that don't specify one.
+        default_model: Default model for subagents that don't specify one, for the
+            general-purpose subagent, and for a `create_agent` or `delegate` call
+            that names no model. There is **no** implicit default: leave it unset
+            and anything that would have relied on one is refused instead, rather
+            than running on a model the library picked and therefore on whatever
+            provider credential the process environment happens to hold.
         toolsets_factory: Factory function that creates toolsets for subagents.
             Called with deps when running a task.
         include_general_purpose: Whether to include the default general-purpose
             subagent. Set to False if you want only specialized subagents.
+            Needs `default_model` or `default_agent_factory` to build it from --
+            see `Raises`. When a `default_agent_factory` is given it is what
+            builds this delegate, so a consumer resolving a model, a credential
+            and a budget per caller gets one it can account for.
         max_nesting_depth: Depth budget handed to `deps.clone_for_subagent`, which
             decides what a subagent may delegate to in turn. This library does not
             itself stop a nested toolset from delegating further -- the gate is
@@ -1427,9 +1557,10 @@ def create_subagent_toolset(
         capabilities_map: Optional capability factories for dynamically created
             specialists.
         default_agent_factory: Optional custom agent factory for dynamically
-            created specialists. When set, requested `capabilities` are rejected.
-            Do not attach an `ask_parent` toolset in the factory; the toolset
-            injects it at run time when needed.
+            created specialists, and for the general-purpose subagent when
+            `include_general_purpose` is on. When set, requested `capabilities`
+            are rejected. Do not attach an `ask_parent` toolset in the factory;
+            the toolset injects it at run time when needed.
         max_agents: Maximum number of persistent dynamic agents, applied to the
             registry this toolset creates for `create_agent`. `0` rejects every
             `create_agent` call. Ignored when `registry` is passed — that registry
@@ -1480,7 +1611,11 @@ def create_subagent_toolset(
         A `SubAgentToolset` configured with the subagent management tools.
 
     Raises:
-        ValueError: If `max_result_chars` or `max_agents` is negative; if
+        ValueError: If `include_general_purpose` is on (and `task` exposed) with
+            neither `default_model` nor `default_agent_factory` to build that
+            delegate from; if a `subagents` entry names no `model` and supplies no
+            `agent` or `agent_factory` while `default_model` is unset; if
+            `max_result_chars` or `max_agents` is negative; if
             `ask_timeout_seconds` or `cancel_grace_seconds` is not positive; if
             `max_chat_traces` or
             `max_task_handles` is below 1; if `delegation_configuration` is invalid; if

@@ -27,6 +27,7 @@ agent = Agent(
     "openai:gpt-4o",
     deps_type=Deps,
     toolsets=[create_subagent_toolset(
+        default_model="openai:gpt-4o",
         subagents=base_subagents,
         registry=registry,
         delegation_configuration="persisted",
@@ -41,7 +42,7 @@ agent = Agent(
 |-----------|------|---------|-------------|
 | `registry` | `DynamicAgentRegistry \| None` | `None` | Registry for created agents; an internal registry is created when omitted |
 | `allowed_models` | `list[str] \| None` | `None` (all allowed) | Models agents can use |
-| `default_model` | `str \| Model` | `"openai:gpt-4.1"` | Default model for new agents when none is given |
+| `default_model` | `str \| Model \| None` | `None` | Model for a `create_agent` call that names none. No implicit default: when unset, such a call is refused rather than run on a library-chosen model |
 | `max_agents` | `int` | `10` | Maximum dynamic agents |
 | `toolsets_factory` | `ToolsetFactory \| None` | `None` | Factory that builds toolsets for every new agent. Takes priority over `capabilities_map` when both are set |
 | `capabilities_map` | `dict[str, CapabilityFactory] \| None` | `None` | Maps capability names to factory functions, e.g. `{"filesystem": ..., "todo": ...}`. Used when `capabilities` are passed to `create_agent` |
@@ -155,12 +156,14 @@ base_subagents = [
 
 # The subagent toolset receives the registry so task() can find dynamic agents
 subagent_toolset = create_subagent_toolset(
+    default_model="openai:gpt-4.1",
     subagents=base_subagents,
     registry=registry,
 )
 
 # The factory toolset uses the same registry to register new agents
 factory_toolset = create_agent_factory_toolset(
+    default_model="openai:gpt-4.1",
     registry=registry,
     allowed_models=["openai:gpt-4.1", "openai:gpt-4o-mini"],
     max_agents=5,
@@ -316,6 +319,7 @@ Prevent unlimited agent creation when the toolset creates its internal registry:
 
 ```python
 create_subagent_toolset(
+    default_model="openai:gpt-4.1",
     delegation_configuration="persisted",
     max_agents=3,  # Maximum 3 dynamic agents
 )
@@ -342,8 +346,10 @@ agent = Agent(
     toolsets=[
         # Task-only. Creating, listing and removing agents lives in the factory
         # toolset, the only one that exposes `remove_agent`.
-        create_subagent_toolset(registry=registry),
-        create_agent_factory_toolset(registry=registry, max_agents=3),
+        create_subagent_toolset(default_model="openai:gpt-4o", registry=registry),
+        create_agent_factory_toolset(
+            default_model="openai:gpt-4o", registry=registry, max_agents=3
+        ),
     ],
 )
 ```
@@ -397,6 +403,7 @@ and one-shot agents.
 from subagents_pydantic_ai import create_subagent_toolset
 
 toolset = create_subagent_toolset(
+    default_model="openai:gpt-4o",
     delegation_configuration="persisted_and_oneshot",
     allowed_models=["openai:gpt-4o", "openai:gpt-4o-mini"],
     capabilities_map={

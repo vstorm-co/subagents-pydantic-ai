@@ -198,11 +198,37 @@ class TestCreateGeneralPurposeConfig:
 
     def test_creates_config(self):
         """Test general purpose config creation."""
-        config = _create_general_purpose_config()
+        config = _create_general_purpose_config("openai:gpt-4", None)
 
         assert config["name"] == "general-purpose"
         assert "general-purpose" in config["description"].lower()
         assert config.get("can_ask_questions") is True
+
+    def test_carries_the_default_model_so_it_compiles_like_any_other(self):
+        """A `default_model` is written onto the config, not compiled from behind it.
+
+        `_compile_subagent` reads `config["model"]`, so carrying it here is what
+        makes this delegate build the same way a configured one does.
+        """
+        config = _create_general_purpose_config("openai:gpt-4", None)
+
+        assert config["model"] == "openai:gpt-4"
+        assert "agent_factory" not in config
+
+    def test_carries_the_factory_so_a_consumer_builds_it_with_its_own_credential(self):
+        """With a factory the config carries that, not a model.
+
+        The factory is what a consumer resolving a model, a credential and a budget
+        per caller hands in; `_compile_subagent` prefers it over `model`.
+        """
+
+        def factory(config: SubAgentConfig) -> object:
+            return MagicMock()
+
+        config = _create_general_purpose_config(None, factory)
+
+        assert config["agent_factory"] is factory
+        assert "model" not in config
 
 
 class TestCompileSubagent:
@@ -226,6 +252,24 @@ class TestCompileSubagent:
             assert compiled.description == "Test agent"
             assert compiled.agent is not None
             assert compiled.config == config
+
+    def test_a_config_naming_no_model_with_no_default_is_refused_not_guessed(self):
+        """A subagent that says nothing about its model is refused when there is no default.
+
+        The library used to fall back on a model of its own choosing here, which
+        resolves whatever provider credential the process environment holds -- in a
+        multi-tenant deployment, not the caller's. Failing loud is the point.
+        """
+        from subagents_pydantic_ai.toolset import _compile_subagent
+
+        config = SubAgentConfig(
+            name="rudderless",
+            description="Names no model",
+            instructions="Do work",
+        )
+
+        with pytest.raises(ValueError, match="says nothing about which model it runs on"):
+            _compile_subagent(config, None)
 
     def test_compile_with_custom_model(self):
         """Test compiling subagent with custom model."""
@@ -505,7 +549,7 @@ class TestCreateSubagentToolset:
             "subagents_pydantic_ai.toolset._compile_subagent",
             return_value=_make_mock_compiled_subagent(config),
         ):
-            toolset = create_subagent_toolset()
+            toolset = create_subagent_toolset(default_model="test")
 
             assert "task" in toolset.tools
             assert "check_task" in toolset.tools
@@ -564,7 +608,7 @@ class TestCreateSubagentToolset:
             "subagents_pydantic_ai.toolset._compile_subagent",
             return_value=_make_mock_compiled_subagent(config),
         ):
-            toolset = create_subagent_toolset(id="custom_subagents")
+            toolset = create_subagent_toolset(default_model="test", id="custom_subagents")
             assert toolset.id == "custom_subagents"
 
     @pytest.mark.asyncio
@@ -4177,6 +4221,7 @@ class TestDelegationConfiguration:
     @pytest.mark.asyncio
     async def test_create_agent_registers_reusable_agent(self, registry):
         toolset = create_subagent_toolset(
+            default_model="test",
             delegation_configuration="persisted",
             registry=registry,
             include_general_purpose=False,
@@ -4204,8 +4249,35 @@ class TestDelegationConfiguration:
         assert task_result.startswith("persisted result\n\nChat Trace ID: ")
 
     @pytest.mark.asyncio
+    async def test_create_agent_without_a_model_or_default_is_refused(self, registry):
+        """A `create_agent` call naming no model is refused when the toolset has no default.
+
+        The sibling of the `task` and `delegate` refusals: the model named nothing,
+        there is no default to fall back on, and it can name one and call again --
+        rather than the library running it on a model it never chose.
+        """
+        toolset = create_subagent_toolset(
+            default_model=None,
+            delegation_configuration="persisted",
+            registry=registry,
+            include_general_purpose=False,
+        )
+        ctx = MockRunContext(deps=MockDeps())
+
+        result = await toolset.tools["create_agent"].function(
+            ctx,
+            name="analyst",
+            description="Analyzes data",
+            instructions="You are a data analyst.",
+        )
+
+        assert "no model was given and there is no default model" in result
+        assert not registry.exists("analyst")
+
+    @pytest.mark.asyncio
     async def test_create_agent_duplicate_name(self, registry):
         toolset = create_subagent_toolset(
+            default_model="test",
             delegation_configuration="persisted",
             registry=registry,
             include_general_purpose=False,
@@ -4234,6 +4306,7 @@ class TestDelegationConfiguration:
     async def test_create_agent_register_max_agents(self):
         registry = DynamicAgentRegistry(max_agents=1)
         toolset = create_subagent_toolset(
+            default_model="test",
             delegation_configuration="persisted",
             registry=registry,
             include_general_purpose=False,
@@ -4262,6 +4335,7 @@ class TestDelegationConfiguration:
     @pytest.mark.asyncio
     async def test_create_agent_validation_error(self, registry):
         toolset = create_subagent_toolset(
+            default_model="test",
             delegation_configuration="persisted",
             registry=registry,
             include_general_purpose=False,
@@ -4282,6 +4356,7 @@ class TestDelegationConfiguration:
     @pytest.mark.asyncio
     async def test_delegate_sync_success(self):
         toolset = create_subagent_toolset(
+            default_model="test",
             delegation_configuration="persisted_and_oneshot",
             include_general_purpose=False,
         )
@@ -4309,6 +4384,7 @@ class TestDelegationConfiguration:
         specialist was for.
         """
         toolset = create_subagent_toolset(
+            default_model="test",
             delegation_configuration="persisted_and_oneshot",
             include_general_purpose=False,
         )
@@ -4334,6 +4410,7 @@ class TestDelegationConfiguration:
     async def test_delegate_rejects_an_invalid_name(self):
         """Names go through the same validation as `create_agent`."""
         toolset = create_subagent_toolset(
+            default_model="test",
             delegation_configuration="persisted_and_oneshot",
             include_general_purpose=False,
         )
@@ -4353,6 +4430,7 @@ class TestDelegationConfiguration:
     async def test_delegate_does_not_register_agent(self, registry):
         registry.max_agents = 1
         toolset = create_subagent_toolset(
+            default_model="test",
             delegation_configuration="persisted_and_oneshot",
             registry=registry,
             include_general_purpose=False,
@@ -4384,6 +4462,7 @@ class TestDelegationConfiguration:
             MagicMock(),
         )
         toolset = create_subagent_toolset(
+            default_model="test",
             delegation_configuration="persisted_and_oneshot",
             registry=registry,
             include_general_purpose=False,
@@ -4406,6 +4485,7 @@ class TestDelegationConfiguration:
     @pytest.mark.asyncio
     async def test_delegate_async_success(self):
         toolset = create_subagent_toolset(
+            default_model="test",
             delegation_configuration="persisted_and_oneshot",
             include_general_purpose=False,
         )
@@ -4457,6 +4537,7 @@ class TestDelegationConfiguration:
     @pytest.mark.asyncio
     async def test_delegate_invalid_capability(self):
         toolset = create_subagent_toolset(
+            default_model="test",
             delegation_configuration="persisted_and_oneshot",
             include_general_purpose=False,
             capabilities_map={"filesystem": lambda deps: []},
@@ -4478,6 +4559,7 @@ class TestDelegationConfiguration:
     @pytest.mark.asyncio
     async def test_delegate_execution_error(self):
         toolset = create_subagent_toolset(
+            default_model="test",
             delegation_configuration="persisted_and_oneshot",
             include_general_purpose=False,
         )
@@ -4498,6 +4580,7 @@ class TestDelegationConfiguration:
     async def test_delegate_async_reports_no_chat_trace(self):
         """An async one-shot handle carries no trace, so neither listing shows one."""
         toolset = create_subagent_toolset(
+            default_model="test",
             delegation_configuration="persisted_and_oneshot",
             include_general_purpose=False,
         )

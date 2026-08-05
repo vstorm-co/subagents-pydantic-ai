@@ -89,11 +89,12 @@ def create_manager_toolsets(deps: Deps) -> list:
     delegate to the subagents this toolset exposes. The leaves get no subagent
     toolset at all, which is what stops the hierarchy here.
     """
-    return [create_subagent_toolset(subagents=leaf_subagents)]
+    return [create_subagent_toolset(default_model="openai:gpt-4.1", subagents=leaf_subagents)]
 
 
 # Top-level toolset
 toolset = create_subagent_toolset(
+    default_model="openai:gpt-4.1",
     subagents=manager_subagents,
     toolsets_factory=create_manager_toolsets,
     max_nesting_depth=1,  # Budget handed to Deps.clone_for_subagent
@@ -127,18 +128,21 @@ Use `max_nesting_depth` to limit how deep delegation can go:
 ```python
 # No nesting (depth=0)
 toolset = create_subagent_toolset(
+    default_model="openai:gpt-4.1",
     subagents=subagents,
     max_nesting_depth=0,  # Subagents cannot delegate
 )
 
 # One level (depth=1)
 toolset = create_subagent_toolset(
+    default_model="openai:gpt-4.1",
     subagents=subagents,
     max_nesting_depth=1,  # Subagents can delegate to leaf agents
 )
 
 # Two levels (depth=2)
 toolset = create_subagent_toolset(
+    default_model="openai:gpt-4.1",
     subagents=subagents,
     max_nesting_depth=2,  # Subagents can delegate to agents that can delegate
 )
@@ -214,12 +218,13 @@ ics = [
 
 
 def create_manager_toolsets(deps):
-    return [create_subagent_toolset(subagents=ics, max_nesting_depth=0)]
+    return [create_subagent_toolset(default_model="openai:gpt-4.1", subagents=ics, max_nesting_depth=0)]
 
 
 def create_executive_toolsets(deps):
     return [
         create_subagent_toolset(
+            default_model="openai:gpt-4.1",
             subagents=managers,
             toolsets_factory=create_manager_toolsets,
             max_nesting_depth=1,
@@ -228,6 +233,7 @@ def create_executive_toolsets(deps):
 
 
 toolset = create_subagent_toolset(
+    default_model="openai:gpt-4.1",
     subagents=[executive],
     toolsets_factory=create_executive_toolsets,
     max_nesting_depth=2,

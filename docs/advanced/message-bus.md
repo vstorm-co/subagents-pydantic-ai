@@ -10,7 +10,7 @@ The library uses `InMemoryMessageBus` by default:
 from subagents_pydantic_ai import create_subagent_toolset
 
 # Uses InMemoryMessageBus internally
-toolset = create_subagent_toolset(subagents=subagents)
+toolset = create_subagent_toolset(default_model="openai:gpt-4.1", subagents=subagents)
 ```
 
 This is suitable for:
@@ -380,7 +380,7 @@ Don't over-engineer. In-memory is fine for most applications:
 
 ```python
 # Simple and effective
-toolset = create_subagent_toolset(subagents=subagents)
+toolset = create_subagent_toolset(default_model="openai:gpt-4.1", subagents=subagents)
 ```
 
 ### 2. Consider Reliability
