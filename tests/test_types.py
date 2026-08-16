@@ -154,7 +154,25 @@ class TestTaskHandle:
         assert handle.completed_at is None
         assert handle.result is None
         assert handle.error is None
+        assert handle.exception is None
         assert handle.pending_question is None
+
+    def test_finish_carries_the_exception_behind_the_error(self):
+        """A host reads the class from `exception` instead of parsing `error`."""
+        handle = TaskHandle(task_id="t", subagent_name="s", description="d")
+        boom = RuntimeError("boom")
+
+        assert handle.finish(TaskStatus.FAILED, error="RuntimeError: boom", exception=boom)
+        assert handle.exception is boom
+
+    def test_finish_clears_a_retry_time_exception_on_completion(self):
+        """`finish` sets `exception` unconditionally, so a completion clears
+        whatever the retry recorder left behind."""
+        handle = TaskHandle(task_id="t", subagent_name="s", description="d")
+        handle.exception = RuntimeError("transient")
+
+        assert handle.finish(TaskStatus.COMPLETED, result="done")
+        assert handle.exception is None
 
     def test_handle_with_result(self):
         """Test handle with completed result."""

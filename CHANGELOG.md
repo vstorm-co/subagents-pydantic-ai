@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.19] - 2026-08-16
+
+### Added
+
+- **`TaskHandle.exception` carries the exception behind `error`.** It is set
+  wherever `error` embeds an exception's own text -- a contained crash, an
+  exhausted retry budget, a usage limit, a propagated crash with
+  `contain_errors=False`, and each transient retry -- and cleared by the
+  winning terminal transition, so a completion leaves it `None`. A host that
+  must not surface a foreign message (a provider error can carry the failing
+  request URL, key included, in its text) reads the class from here, composes
+  its own sentence, and logs the original instead of parsing `error`.
+  `finish()` takes the exception as a keyword for the same reason.
+
 ## [0.2.18] - 2026-08-05
 
 `default_model` no longer defaults to a model of the library's choosing. There is

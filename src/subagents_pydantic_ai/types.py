@@ -419,6 +419,11 @@ class TaskHandle:
         completed_at: When execution finished
         result: Task result (if completed)
         error: Error message (if failed)
+        exception: The underlying exception, set whenever `error` embeds an
+            exception's own text. A host that must not surface a foreign
+            message -- a provider error can carry the failing request URL,
+            key included -- reads the class from here, composes its own
+            sentence, and logs the original.
         pending_question: Question waiting for answer (if any)
         chat_trace_id: Chat trace ID for continuing this subagent conversation
         run_id: Pydantic AI run ID for the subagent run
@@ -444,6 +449,7 @@ class TaskHandle:
     completed_at: datetime | None = None
     result: str | None = None
     error: str | None = None
+    exception: BaseException | None = None
     pending_question: str | None = None
     chat_trace_id: str | None = None
     usage: RunUsage | None = None
@@ -478,6 +484,7 @@ class TaskHandle:
         *,
         result: str | None = None,
         error: str | None = None,
+        exception: BaseException | None = None,
     ) -> bool:
         """Record a terminal outcome, first terminal transition winning.
 
@@ -490,6 +497,9 @@ class TaskHandle:
             status: The terminal status to record.
             result: Result text, for a completed task.
             error: Error text, for a failed or cancelled task.
+            exception: The exception behind `error`, when there is one. Set
+                unconditionally on the winning transition, so a completion
+                clears whatever a transient retry recorded.
 
         Returns:
             Whether this call recorded the outcome.
@@ -499,6 +509,7 @@ class TaskHandle:
         self.status = status
         self.result = result
         self.error = error
+        self.exception = exception
         self.completed_at = utcnow()
         return True
 

@@ -283,13 +283,13 @@ async def _run_sync(
         _fail(handle, "propagated")
         raise
     except UsageLimitExceeded as exc:
-        _fail(handle, f"{_USAGE_LIMIT_MARKER}: {exc}")
+        _fail(handle, f"{_USAGE_LIMIT_MARKER}: {exc}", exception=exc)
         raise
     except (ModelRetry, UnexpectedModelBehavior) as exc:
         return _degrade(handle, config, task_id, exc, crashed=False)
     except Exception as exc:
         if not contain_errors:
-            _fail(handle, str(exc))
+            _fail(handle, str(exc), exception=exc)
             raise
         return _degrade(handle, config, task_id, exc, crashed=True)
 
@@ -326,13 +326,14 @@ def _retry_recorder(handle: TaskHandle | None) -> OnRetryCallback | None:
         handle.status = TaskStatus.RETRYING
         handle.retry_count = attempt
         handle.error = f"Transient error (retry {attempt}): {exc}"
+        handle.exception = exc
 
     return on_retry
 
 
-def _fail(handle: TaskHandle | None, error: str) -> None:
+def _fail(handle: TaskHandle | None, error: str, exception: BaseException | None = None) -> None:
     if handle is not None:
-        handle.finish(TaskStatus.FAILED, error=error)
+        handle.finish(TaskStatus.FAILED, error=error, exception=exception)
 
 
 def _suspend(
@@ -375,7 +376,7 @@ def _degrade(
     which case the parent receives that as an ordinary tool result.
     """
     name = config["name"]
-    _fail(handle, f"{type(exc).__name__}: {exc}")
+    _fail(handle, f"{type(exc).__name__}: {exc}", exception=exc)
     if crashed:
         # Contained, but loud: the exception rides the retry message and is logged,
         # and the tool's retry budget still turns repeated crashes into an abort.
@@ -511,7 +512,7 @@ async def _run_async(
             handle.finish(TaskStatus.CANCELLED, error="Task was cancelled")
             raise
         except UsageLimitExceeded as exc:
-            handle.finish(TaskStatus.FAILED, error=f"{_USAGE_LIMIT_MARKER}: {exc}")
+            handle.finish(TaskStatus.FAILED, error=f"{_USAGE_LIMIT_MARKER}: {exc}", exception=exc)
         except _HUMAN_IN_THE_LOOP as exc:
             handle.finish(
                 TaskStatus.DEFERRED,
@@ -521,7 +522,7 @@ async def _run_async(
             logger.warning(
                 "Background subagent %r failed (task %s)", config["name"], task_id, exc_info=exc
             )
-            handle.finish(TaskStatus.FAILED, error=f"{type(exc).__name__}: {exc}")
+            handle.finish(TaskStatus.FAILED, error=f"{type(exc).__name__}: {exc}", exception=exc)
         finally:
             if handle.completed_at is None:  # pragma: no cover - every path finishes above
                 handle.completed_at = utcnow()

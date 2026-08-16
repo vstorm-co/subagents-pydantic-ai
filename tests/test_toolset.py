@@ -1027,7 +1027,8 @@ class TestRunSync:
     @pytest.mark.asyncio
     async def test_run_sync_crash_returns_on_failure_message(self):
         """`on_failure` turns a crash into a steering message instead of a retry."""
-        mock_agent = FakeAgent(error=Exception("boom"))
+        boom = Exception("boom")
+        mock_agent = FakeAgent(error=boom)
         config = SubAgentConfig(
             name="test",
             description="Test agent",
@@ -1048,16 +1049,19 @@ class TestRunSync:
         assert result == "Summarise from what you already have."
         assert handle.status == TaskStatus.FAILED
         assert handle.error == "Exception: boom"
+        assert handle.exception is boom
 
     @pytest.mark.asyncio
     async def test_run_sync_propagates_crash_when_not_contained(self):
         """`contain_errors=False` lets the original exception reach the parent run."""
-        mock_agent = FakeAgent(error=ValueError("bad tool argument"))
+        bad = ValueError("bad tool argument")
+        mock_agent = FakeAgent(error=bad)
         config = SubAgentConfig(
             name="test",
             description="Test agent",
             instructions="Do test",
         )
+        handle = TaskHandle(task_id="task-123", subagent_name="test", description="d")
 
         with pytest.raises(ValueError, match="bad tool argument"):
             await _run_sync(
@@ -1066,8 +1070,12 @@ class TestRunSync:
                 description="do the thing",
                 deps=MockDeps(),
                 task_id="task-123",
+                handle=handle,
                 contain_errors=False,
             )
+
+        assert handle.status == TaskStatus.FAILED
+        assert handle.exception is bad
 
     @pytest.mark.asyncio
     async def test_run_sync_propagates_control_flow_signals(self):

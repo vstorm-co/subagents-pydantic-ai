@@ -511,6 +511,7 @@ async def test_run_async_retries_then_completes() -> None:
     assert handle.retry_count == 1
     # Transient error message cleared after eventual success.
     assert handle.error is None
+    assert handle.exception is None
 
 
 async def test_run_async_completes_when_observability_attrs_missing() -> None:
@@ -614,6 +615,7 @@ async def test_run_async_retries_exhausted_fails() -> None:
     assert handle.status == TaskStatus.FAILED
     assert handle.retry_count == 1
     assert "503" in str(handle.error)
+    assert isinstance(handle.exception, ModelHTTPError)
 
 
 async def test_run_async_soft_cancel_marks_handle_cancelled() -> None:
@@ -1092,6 +1094,7 @@ async def test_run_sync_records_retries_on_the_handle() -> None:
     assert handle.retry_count == 1
     # Transient error message cleared after eventual success.
     assert handle.error is None
+    assert handle.exception is None
 
 
 async def test_run_sync_records_retries_before_failing() -> None:
@@ -1125,6 +1128,7 @@ async def test_run_sync_records_retries_before_failing() -> None:
     assert handle.status == TaskStatus.FAILED
     assert handle.retry_count == 1
     assert "503" in str(handle.error)
+    assert isinstance(handle.exception, ModelHTTPError)
 
 
 async def test_run_sync_without_a_handle_still_retries() -> None:

@@ -172,6 +172,7 @@ class TaskHandle:
     completed_at: datetime | None # When finished
     result: str | None        # Result (if completed)
     error: str | None         # Error (if failed)
+    exception: BaseException | None  # The exception behind `error`, when one caused it
     pending_question: str | None  # Question waiting for answer
 ```
 
