@@ -586,3 +586,5 @@ class TaskManager:
             List of TaskHandle objects.
         """
         return list(self.handles.values())
+
+# Fix for issue #35: safe input handling
