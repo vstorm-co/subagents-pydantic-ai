@@ -170,8 +170,14 @@ Task: a1b2c3d4
 Subagent: scraper
 Status: failed
 Description: Fetch the pricing page
-Error: ConnectionError: Connection reset by peer
+Error: ConnectionError
 ```
+
+**The class, not the message.** What `check_task` and `wait_tasks` return is a tool
+*return*, which a host stores whole on the parent's transcript and shows to everyone
+who can read the run -- and a model client's message carries the failing request URL
+with the key still in its query string. So the answer names the class, read off
+`handle.exception`; `handle.error` keeps the whole thing for your logs.
 
 Cancellation is separate: a cancelled task reaches `cancelled`, and
 `asyncio.CancelledError` is re-raised so the task really stops. See

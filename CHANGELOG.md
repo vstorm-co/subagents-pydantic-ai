@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.20] - 2026-08-17
+
+### Fixed
+
+- **`check_task` and `wait_tasks` no longer hand a delegate's provider text to
+  the model.** Both composed their failure lines from `handle.error`, which
+  embeds the exception's own message -- and a model client's message carries the
+  failing request URL with the key still in its query string on a custom
+  `base_url`. What a status tool returns is a tool *return*, which a host stores
+  whole and renders to everyone who can read the run, so the key landed on a
+  stored transcript row. The four lines (`Error:`, `Retry N:`, `Outcome:` in
+  `check_task`, and the terminal line in `wait_tasks`) now name the exception's
+  class, taken from `TaskHandle.exception`. `handle.error` is unchanged and still
+  holds the whole thing for a host to log.
+
+  The `RETRYING` line leaked for delegations that eventually **succeed**:
+  `finish` clears `error` on completion, but a model that polled mid-retry
+  already had the answer on a transcript row.
+
+  The `usage limit exceeded` marker survives -- it is this library's own text,
+  and it is what tells a model to stop delegating rather than retry.
+
+  **Behaviour change** for a host that read those strings expecting the
+  exception's message: it is on `handle.error`, and `handle.exception` is the
+  supported way to compose your own.
+
 ## [0.2.19] - 2026-08-16
 
 ### Added

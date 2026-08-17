@@ -24,7 +24,11 @@ from pydantic_ai.models import Model
 from pydantic_ai.toolsets import AbstractToolset, FunctionToolset
 
 from subagents_pydantic_ai._chat_trace import ChatTraceKey, ChatTraceStore
-from subagents_pydantic_ai._execution import DEFAULT_ASK_TIMEOUT_SECONDS, drain_steering_messages
+from subagents_pydantic_ai._execution import (
+    DEFAULT_ASK_TIMEOUT_SECONDS,
+    drain_steering_messages,
+    error_for_model,
+)
 from subagents_pydantic_ai._execution import _run_async as _run_async
 from subagents_pydantic_ai._execution import _run_sync as _run_sync
 from subagents_pydantic_ai._observability import (
@@ -1253,16 +1257,16 @@ class SubAgentToolset(FunctionToolset[Any]):
         if handle.status == TaskStatus.COMPLETED:
             status_info.append(f"Result: {handle.result}")
         elif handle.status == TaskStatus.FAILED:
-            status_info.append(f"Error: {handle.error}")
+            status_info.append(f"Error: {error_for_model(handle)}")
         elif handle.status == TaskStatus.WAITING_FOR_ANSWER:
             status_info.append(f"Question: {handle.pending_question}")
         elif handle.is_finished:
             # CANCELLED. Every terminal status has to report its outcome here;
             # falling through to the elapsed-time line would tell the model a
             # finished task is still running, and hide why it stopped.
-            status_info.append(f"Outcome: {handle.error}")
+            status_info.append(f"Outcome: {error_for_model(handle)}")
         elif handle.status == TaskStatus.RETRYING:
-            status_info.append(f"Retry {handle.retry_count}: {handle.error}")
+            status_info.append(f"Retry {handle.retry_count}: {error_for_model(handle)}")
         elif handle.started_at:
             elapsed = (utcnow() - handle.started_at).total_seconds()
             status_info.append(f"Running for: {elapsed:.1f}s")
@@ -1403,7 +1407,7 @@ class SubAgentToolset(FunctionToolset[Any]):
                 finished_count += 1
                 lines.append(
                     f"- {tid} ({handle.subagent_name}): "
-                    f"{handle.status.value.upper()} - {handle.error}"
+                    f"{handle.status.value.upper()} - {error_for_model(handle)}"
                 )
             else:
                 lines.append(f"- {tid} ({handle.subagent_name}): {handle.status}")

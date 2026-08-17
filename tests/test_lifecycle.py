@@ -277,6 +277,115 @@ class TestStatusRendering:
 
 
 # --------------------------------------------------------------------------- #
+# What a status answer may say about a failure
+# --------------------------------------------------------------------------- #
+
+
+_KEYED_URL = "https://acme.example/v1/chat?api-key=sk-live-4f2b"
+
+
+def _failed(status: TaskStatus = TaskStatus.FAILED, **extra: Any) -> TaskHandle:
+    """A handle whose `error` embeds a model client's own message, as a real one does."""
+    exception = RuntimeError(f"401 Unauthorized calling {_KEYED_URL}")
+    return TaskHandle(
+        task_id="t1",
+        subagent_name="worker",
+        description="dig",
+        status=status,
+        error=f"{type(exception).__name__}: {exception}",
+        exception=exception,
+        **extra,
+    )
+
+
+class TestAStatusAnswerNamesTheTypeNotTheMessage:
+    """A task-status tool's answer is stored and shown, so it carries no vendor text.
+
+    A host stores a `ToolReturnPart` whole -- it is the tool's own answer, not a
+    retry prompt something can scrub -- and renders it to everyone who can read the
+    run. A model client's message carries the failing request URL with the key still
+    in its query string on a custom `base_url`, so handing `handle.error` to the
+    model put that key on a transcript row. The class is named instead, and
+    `handle.error` keeps the original for the host to log.
+    """
+
+    async def test_check_task_on_a_failed_task_names_the_class(self) -> None:
+        toolset = _toolset()
+        toolset.task_manager.handles["t1"] = _failed()
+
+        result = await toolset.tools["check_task"].function(Ctx(), "t1")
+
+        assert "Error: RuntimeError" in result
+        assert _KEYED_URL not in result
+        assert "401" not in result
+
+    async def test_check_task_mid_retry_names_the_class_and_keeps_the_count(self) -> None:
+        """This one leaks for a delegation that eventually succeeds.
+
+        `finish` clears `error` on completion, but the model may have polled while
+        the task was retrying, and by then the answer is already a transcript row.
+        """
+        toolset = _toolset()
+        toolset.task_manager.handles["t1"] = _failed(
+            TaskStatus.RETRYING, started_at=utcnow(), retry_count=2
+        )
+
+        result = await toolset.tools["check_task"].function(Ctx(), "t1")
+
+        assert "Retry 2: RuntimeError" in result
+        assert _KEYED_URL not in result
+
+    async def test_check_task_on_a_cancellation_that_carried_one_names_the_class(self) -> None:
+        toolset = _toolset()
+        toolset.task_manager.handles["t1"] = _failed(TaskStatus.CANCELLED)
+
+        result = await toolset.tools["check_task"].function(Ctx(), "t1")
+
+        assert "Outcome: RuntimeError" in result
+        assert _KEYED_URL not in result
+
+    async def test_wait_tasks_names_the_class(self) -> None:
+        toolset = _toolset()
+        toolset.task_manager.handles["t1"] = _failed()
+
+        result = await toolset.tools["wait_tasks"].function(Ctx(), ["t1"])
+
+        assert "FAILED - RuntimeError" in result
+        assert _KEYED_URL not in result
+
+    async def test_a_budget_that_ran_out_still_says_so(self) -> None:
+        """The marker is this library's own text, so replacing it would lose the
+        one thing that tells a model to stop delegating rather than retry."""
+        toolset = _toolset()
+        exhausted = UsageLimitExceeded("The next request would exceed the limit")
+        toolset.task_manager.handles["t1"] = TaskHandle(
+            task_id="t1",
+            subagent_name="worker",
+            description="dig",
+            status=TaskStatus.FAILED,
+            error=f"usage limit exceeded: {exhausted}",
+            exception=exhausted,
+        )
+
+        result = await toolset.tools["check_task"].function(Ctx(), "t1")
+
+        assert "Error: usage limit exceeded: UsageLimitExceeded" in result
+        assert "The next request would exceed the limit" not in result
+
+    async def test_the_handle_keeps_the_original_for_the_host_to_log(self) -> None:
+        """Scrubbing the answer must not scrub the record. #699's contract is that
+        `error` holds the whole thing and `exception` is how a host composes its own."""
+        toolset = _toolset()
+        handle = _failed()
+        toolset.task_manager.handles["t1"] = handle
+
+        await toolset.tools["check_task"].function(Ctx(), "t1")
+
+        assert handle.error is not None
+        assert _KEYED_URL in handle.error
+
+
+# --------------------------------------------------------------------------- #
 # Run isolation
 # --------------------------------------------------------------------------- #
 

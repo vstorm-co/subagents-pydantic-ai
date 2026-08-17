@@ -118,6 +118,27 @@ explanations of one rule.
 """
 
 
+def error_for_model(handle: TaskHandle) -> str | None:
+    """A handle's failure in this library's own words, with no foreign text in it.
+
+    `handle.error` embeds the exception's own message exactly when
+    `handle.exception` is set, and a model client's message can carry the failing
+    request URL with the key still in its query string. The task-status tools hand
+    their answer to the model, where a host stores a tool return whole and streams
+    it to everyone who can read the run -- so what goes back names the class, and
+    the original stays on `handle.error` for the host to log.
+
+    The usage-limit marker survives, because it is text this library chose rather
+    than text a provider sent; only the part after it is replaced.
+    """
+    if handle.exception is None:
+        return handle.error
+    name = type(handle.exception).__name__
+    if handle.error is not None and handle.error.startswith(_USAGE_LIMIT_MARKER):
+        return f"{_USAGE_LIMIT_MARKER}: {name}"
+    return name
+
+
 def _deferred_requests(output: object) -> DeferredToolRequests | None:
     """The parked tool calls in a run's output, when it suspended rather than answered.
 

@@ -2666,7 +2666,10 @@ class TestToolsetFunctionsCoverage:
             # Check task status
             status = await check_tool.function(ctx, task_id)
             assert "failed" in status.lower()
-            assert "Task crashed" in status
+            # The class, not the message: a return is stored whole on the parent's
+            # transcript and a provider's text carries the keyed request URL.
+            assert "Error: Exception" in status
+            assert "Task crashed" not in status
 
     @pytest.mark.asyncio
     async def test_answer_subagent_success(self):
@@ -2873,8 +2876,8 @@ class TestToolsetFunctionsCoverage:
             await asyncio.sleep(0.1)
 
             result = await wait_tool.function(ctx, [tid1], 5.0)
-            assert "FAILED" in result
-            assert "Search API down" in result
+            assert "FAILED - Exception" in result
+            assert "Search API down" not in result
 
     @pytest.mark.asyncio
     async def test_wait_tasks_not_found(self):
