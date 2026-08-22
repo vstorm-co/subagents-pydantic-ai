@@ -1,0 +1,2772 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Multi-Agent Orchestration for Pydantic AI">
+      
+      
+      
+        <link rel="canonical" href="https://vstorm-co.github.io/subagents-pydantic-ai/changelog/">
+      
+      
+        <link rel="prev" href="../api/prompts/">
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../favicon.ico">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Changelog - Subagents for Pydantic AI</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+  
+  
+    
+      
+      
+    
+  
+    
+      
+      
+    
+  
+    
+      
+      
+    
+  
+    
+      
+      
+    
+  
+    
+      
+      
+    
+  
+    
+      
+      
+    
+  
+    
+      
+      
+    
+  
+    
+      
+      
+    
+  
+    
+      
+      
+    
+  
+    
+      
+      
+    
+  
+    
+      
+      
+    
+  
+    
+      
+      
+    
+  
+  
+  <style>:root{--md-admonition-icon--note:url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2016%2016%22%3E%3Cpath%20d%3D%22M1%207.775V2.75C1%201.784%201.784%201%202.75%201h5.025c.464%200%20.91.184%201.238.513l6.25%206.25a1.75%201.75%200%200%201%200%202.474l-5.026%205.026a1.75%201.75%200%200%201-2.474%200l-6.25-6.25A1.75%201.75%200%200%201%201%207.775m1.5%200c0%20.066.026.13.073.177l6.25%206.25a.25.25%200%200%200%20.354%200l5.025-5.025a.25.25%200%200%200%200-.354l-6.25-6.25a.25.25%200%200%200-.177-.073H2.75a.25.25%200%200%200-.25.25ZM6%205a1%201%200%201%201%200%202%201%201%200%200%201%200-2%22/%3E%3C/svg%3E');--md-admonition-icon--abstract:url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2016%2016%22%3E%3Cpath%20d%3D%22M2.5%201.75v11.5c0%20.138.112.25.25.25h3.17a.75.75%200%200%201%200%201.5H2.75A1.75%201.75%200%200%201%201%2013.25V1.75C1%20.784%201.784%200%202.75%200h8.5C12.216%200%2013%20.784%2013%201.75v7.736a.75.75%200%200%201-1.5%200V1.75a.25.25%200%200%200-.25-.25h-8.5a.25.25%200%200%200-.25.25m13.274%209.537zl-4.557%204.45a.75.75%200%200%201-1.055-.008l-1.943-1.95a.75.75%200%200%201%201.062-1.058l1.419%201.425%204.026-3.932a.75.75%200%201%201%201.048%201.074M4.75%204h4.5a.75.75%200%200%201%200%201.5h-4.5a.75.75%200%200%201%200-1.5M4%207.75A.75.75%200%200%201%204.75%207h2a.75.75%200%200%201%200%201.5h-2A.75.75%200%200%201%204%207.75%22/%3E%3C/svg%3E');--md-admonition-icon--info:url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2016%2016%22%3E%3Cpath%20d%3D%22M0%208a8%208%200%201%201%2016%200A8%208%200%200%201%200%208m8-6.5a6.5%206.5%200%201%200%200%2013%206.5%206.5%200%200%200%200-13M6.5%207.75A.75.75%200%200%201%207.25%207h1a.75.75%200%200%201%20.75.75v2.75h.25a.75.75%200%200%201%200%201.5h-2a.75.75%200%200%201%200-1.5h.25v-2h-.25a.75.75%200%200%201-.75-.75M8%206a1%201%200%201%201%200-2%201%201%200%200%201%200%202%22/%3E%3C/svg%3E');--md-admonition-icon--tip:url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2016%2016%22%3E%3Cpath%20d%3D%22M3.499.75a.75.75%200%200%201%201.5%200v.996C5.9%202.903%206.793%203.65%207.662%204.376l.24.202c-.036-.694.055-1.422.426-2.163C9.1.873%2010.794-.045%2012.622.26%2014.408.558%2016%201.94%2016%204.25c0%201.278-.954%202.575-2.44%202.734l.146.508.065.22c.203.701.412%201.455.476%202.226.142%201.707-.4%203.03-1.487%203.898C11.714%2014.671%2010.27%2015%208.75%2015h-6a.75.75%200%200%201%200-1.5h1.376a4.5%204.5%200%200%201-.563-1.191%203.84%203.84%200%200%201-.05-2.063%204.65%204.65%200%200%201-2.025-.293.75.75%200%200%201%20.525-1.406c1.357.507%202.376-.006%202.698-.318l.009-.01a.747.747%200%200%201%201.06%200%20.75.75%200%200%201-.012%201.074c-.912.92-.992%201.835-.768%202.586.221.74.745%201.337%201.196%201.621H8.75c1.343%200%202.398-.296%203.074-.836.635-.507%201.036-1.31.928-2.602-.05-.603-.216-1.224-.422-1.93l-.064-.221c-.12-.407-.246-.84-.353-1.29a2.4%202.4%200%200%201-.507-.441%203.1%203.1%200%200%201-.633-1.248.75.75%200%200%201%201.455-.364c.046.185.144.436.31.627.146.168.353.305.712.305.738%200%201.25-.615%201.25-1.25%200-1.47-.95-2.315-2.123-2.51-1.172-.196-2.227.387-2.706%201.345-.46.92-.27%201.774.019%203.062l.042.19.01.05c.348.443.666.949.94%201.553a.75.75%200%201%201-1.365.62c-.553-1.217-1.32-1.94-2.3-2.768L6.7%205.527c-.814-.68-1.75-1.462-2.692-2.619a3.7%203.7%200%200%200-1.023.88c-.406.495-.663%201.036-.722%201.508.116.122.306.21.591.239.388.038.797-.06%201.032-.19a.75.75%200%200%201%20.728%201.31c-.515.287-1.23.439-1.906.373-.682-.067-1.473-.38-1.879-1.193L.75%205.677V5.5c0-.984.48-1.94%201.077-2.664.46-.559%201.05-1.055%201.673-1.353z%22/%3E%3C/svg%3E');--md-admonition-icon--success:url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2016%2016%22%3E%3Cpath%20d%3D%22M13.78%204.22a.75.75%200%200%201%200%201.06l-7.25%207.25a.75.75%200%200%201-1.06%200L2.22%209.28a.75.75%200%200%201%20.018-1.042.75.75%200%200%201%201.042-.018L6%2010.94l6.72-6.72a.75.75%200%200%201%201.06%200%22/%3E%3C/svg%3E');--md-admonition-icon--question:url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2016%2016%22%3E%3Cpath%20d%3D%22M0%208a8%208%200%201%201%2016%200A8%208%200%200%201%200%208m8-6.5a6.5%206.5%200%201%200%200%2013%206.5%206.5%200%200%200%200-13M6.92%206.085h.001a.749.749%200%201%201-1.342-.67c.169-.339.436-.701.849-.977C6.845%204.16%207.369%204%208%204a2.76%202.76%200%200%201%201.637.525c.503.377.863.965.863%201.725%200%20.448-.115.83-.329%201.15-.205.307-.47.513-.692.662-.109.072-.22.138-.313.195l-.006.004a6%206%200%200%200-.26.16%201%201%200%200%200-.276.245.75.75%200%200%201-1.248-.832c.184-.264.42-.489.692-.661q.154-.1.313-.195l.007-.004c.1-.061.182-.11.258-.161a1%201%200%200%200%20.277-.245C8.96%206.514%209%206.427%209%206.25a.61.61%200%200%200-.262-.525A1.27%201.27%200%200%200%208%205.5c-.369%200-.595.09-.74.187a1%201%200%200%200-.34.398M9%2011a1%201%200%201%201-2%200%201%201%200%200%201%202%200%22/%3E%3C/svg%3E');--md-admonition-icon--warning:url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2016%2016%22%3E%3Cpath%20d%3D%22M6.457%201.047c.659-1.234%202.427-1.234%203.086%200l6.082%2011.378A1.75%201.75%200%200%201%2014.082%2015H1.918a1.75%201.75%200%200%201-1.543-2.575Zm1.763.707a.25.25%200%200%200-.44%200L1.698%2013.132a.25.25%200%200%200%20.22.368h12.164a.25.25%200%200%200%20.22-.368Zm.53%203.996v2.5a.75.75%200%200%201-1.5%200v-2.5a.75.75%200%200%201%201.5%200M9%2011a1%201%200%201%201-2%200%201%201%200%200%201%202%200%22/%3E%3C/svg%3E');--md-admonition-icon--failure:url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2016%2016%22%3E%3Cpath%20d%3D%22M2.344%202.343za8%208%200%200%201%2011.314%2011.314A8.002%208.002%200%200%201%20.234%2010.089a8%208%200%200%201%202.11-7.746m1.06%2010.253a6.5%206.5%200%201%200%209.108-9.275%206.5%206.5%200%200%200-9.108%209.275M6.03%204.97%208%206.94l1.97-1.97a.749.749%200%200%201%201.275.326.75.75%200%200%201-.215.734L9.06%208l1.97%201.97a.749.749%200%200%201-.326%201.275.75.75%200%200%201-.734-.215L8%209.06l-1.97%201.97a.749.749%200%200%201-1.275-.326.75.75%200%200%201%20.215-.734L6.94%208%204.97%206.03a.75.75%200%200%201%20.018-1.042.75.75%200%200%201%201.042-.018%22/%3E%3C/svg%3E');--md-admonition-icon--danger:url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2016%2016%22%3E%3Cpath%20d%3D%22M9.504.43a1.516%201.516%200%200%201%202.437%201.713L10.415%205.5h2.123c1.57%200%202.346%201.909%201.22%203.004l-7.34%207.142a1.25%201.25%200%200%201-.871.354h-.302a1.25%201.25%200%200%201-1.157-1.723L5.633%2010.5H3.462c-1.57%200-2.346-1.909-1.22-3.004zm1.047%201.074L3.286%208.571A.25.25%200%200%200%203.462%209H6.75a.75.75%200%200%201%20.694%201.034l-1.713%204.188%206.982-6.793A.25.25%200%200%200%2012.538%207H9.25a.75.75%200%200%201-.683-1.06l2.008-4.418.003-.006-.004-.009-.006-.006-.008-.001q-.005%200-.009.004%22/%3E%3C/svg%3E');--md-admonition-icon--bug:url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2016%2016%22%3E%3Cpath%20d%3D%22M4.72.22a.75.75%200%200%201%201.06%200l1%20.999a3.5%203.5%200%200%201%202.441%200l.999-1a.748.748%200%200%201%201.265.332.75.75%200%200%201-.205.729l-.775.776c.616.63.995%201.493.995%202.444v.327q0%20.15-.025.292c.408.14.764.392%201.029.722l1.968-.787a.75.75%200%200%201%20.556%201.392L13%207.258V9h2.25a.75.75%200%200%201%200%201.5H13v.5q-.002.615-.141%201.186l2.17.868a.75.75%200%200%201-.557%201.392l-2.184-.873A5%205%200%200%201%208%2016a5%205%200%200%201-4.288-2.427l-2.183.873a.75.75%200%200%201-.558-1.392l2.17-.868A5%205%200%200%201%203%2011v-.5H.75a.75.75%200%200%201%200-1.5H3V7.258L.971%206.446a.75.75%200%200%201%20.558-1.392l1.967.787c.265-.33.62-.583%201.03-.722a1.7%201.7%200%200%201-.026-.292V4.5c0-.951.38-1.814.995-2.444L4.72%201.28a.75.75%200%200%201%200-1.06m.53%206.28a.75.75%200%200%200-.75.75V11a3.5%203.5%200%201%200%207%200V7.25a.75.75%200%200%200-.75-.75ZM6.173%205h3.654A.17.17%200%200%200%2010%204.827V4.5a2%202%200%201%200-4%200v.327c0%20.096.077.173.173.173%22/%3E%3C/svg%3E');--md-admonition-icon--example:url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2016%2016%22%3E%3Cpath%20d%3D%22M5%205.782V2.5h-.25a.75.75%200%200%201%200-1.5h6.5a.75.75%200%200%201%200%201.5H11v3.282l3.666%205.76C15.619%2013.04%2014.543%2015%2012.767%2015H3.233c-1.776%200-2.852-1.96-1.899-3.458Zm-2.4%206.565a.75.75%200%200%200%20.633%201.153h9.534a.75.75%200%200%200%20.633-1.153L12.225%2010.5h-8.45ZM9.5%202.5h-3V6c0%20.143-.04.283-.117.403L4.73%209h6.54L9.617%206.403A.75.75%200%200%201%209.5%206Z%22/%3E%3C/svg%3E');--md-admonition-icon--quote:url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2016%2016%22%3E%3Cpath%20d%3D%22M1.75%202.5h10.5a.75.75%200%200%201%200%201.5H1.75a.75.75%200%200%201%200-1.5m4%205h8.5a.75.75%200%200%201%200%201.5h-8.5a.75.75%200%200%201%200-1.5m0%205h8.5a.75.75%200%200%201%200%201.5h-8.5a.75.75%200%200%201%200-1.5M2.5%207.75v6a.75.75%200%200%201-1.5%200v-6a.75.75%200%200%201%201.5%200%22/%3E%3C/svg%3E');}</style>
+
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,300i,400,400i,700,700i%7CJetBrains+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Inter";--md-code-font:"JetBrains Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="slate" data-md-color-primary="pink" data-md-color-accent="pink">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#changelog" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+        <aside class="md-banner">
+          <div class="md-banner__inner md-grid md-typeset">
+            
+              <button class="md-banner__button md-icon" aria-label="Don't show this again">
+                
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+              </button>
+            
+            
+<a href="https://github.com/vstorm-co/subagents-pydantic-ai">
+  <span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg></span>
+  <strong>Star us on GitHub</strong> — Help us reach more developers!
+</a>
+
+          </div>
+          
+            <script>var el=document.querySelector("[data-md-component=announce]");if(el){var content=el.querySelector(".md-typeset");__md_hash(content.innerHTML)===__md_get("__announce")&&(el.hidden=!0)}</script>
+          
+        </aside>
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Subagents for Pydantic AI" class="md-header__button md-logo" aria-label="Subagents for Pydantic AI" data-md-component="logo">
+      
+  <img src="../favicon.ico" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Subagents for Pydantic AI
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Changelog
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="pink" data-md-color-accent="pink"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="pink" data-md-color-accent="pink"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+          <a href="javascript:void(0)" class="md-search__icon md-icon" title="Share" aria-label="Share" data-clipboard data-clipboard-text="" data-md-component="search-share" tabindex="-1">
+            
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91s2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08"/></svg>
+          </a>
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/vstorm-co/subagents-pydantic-ai" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    vstorm-co/subagents-pydantic-ai
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Subagents for Pydantic AI" class="md-nav__button md-logo" aria-label="Subagents for Pydantic AI" data-md-component="logo">
+      
+  <img src="../favicon.ico" alt="logo">
+
+    </a>
+    Subagents for Pydantic AI
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/vstorm-co/subagents-pydantic-ai" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    vstorm-co/subagents-pydantic-ai
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Subagents for Pydantic AI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-help/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Help
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../concepts/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Core Concepts
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4" id="__nav_4_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Core Concepts
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../concepts/capability/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Capability
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../concepts/subagents/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Subagents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../concepts/toolset/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Toolset
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../concepts/observability/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Observability
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../concepts/types/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Types
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Advanced Features
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Advanced Features
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../advanced/execution-modes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Execution Modes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../advanced/questions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Parent-Child Questions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../advanced/steering/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Steering a running subagent
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../advanced/chat-traces/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Chat traces
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../advanced/cancellation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Task Cancellation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../advanced/streaming/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Streaming subagent output
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../advanced/errors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Failure handling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../advanced/retries/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Auto-Retry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../advanced/usage-limits/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Usage limits
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../advanced/dynamic-agents/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dynamic Agent Creation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../advanced/message-bus/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Message Bus
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../examples/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_6" id="__nav_6_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Examples
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_2" id="__nav_6_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Getting Started
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/basic-usage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Basic Usage
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/sync-async/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sync vs Async Execution
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_3" id="__nav_6_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agent Features
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Agent Features
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/toolsets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Giving Subagents Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/questions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Questions Example
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/nesting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Nested Subagents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_4" id="__nav_6_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Applications
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Applications
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/research-team/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Research Team Example
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../api/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_7" id="__nav_7_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    API Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/capability/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Capability
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/toolset/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Toolset
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/types/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Types
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/protocols/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Protocols
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/registry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Registry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/dynamic-agent/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dynamic Agents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/message-bus/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Message Bus
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/retry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Retry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/spec/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Spec
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/prompts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Prompts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+                
+
+
+
+  
+
+
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="changelog">Changelog<a class="headerlink" href="#changelog" title="Permanent link">&para;</a></h1>
+<h1 id="changelog_1">Changelog<a class="headerlink" href="#changelog_1" title="Permanent link">&para;</a></h1>
+<p>All notable changes to this project will be documented in this file.</p>
+<p>The format is based on <a href="https://keepachangelog.com/en/1.1.0/">Keep a Changelog</a>,
+and this project adheres to <a href="https://semver.org/spec/v2.0.0.html">Semantic Versioning</a>.</p>
+<h2 id="0221-2026-08-22">[0.2.21] - 2026-08-22<a class="headerlink" href="#0221-2026-08-22" title="Permanent link">&para;</a></h2>
+<h3 id="fixed">Fixed<a class="headerlink" href="#fixed" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>A delegation tool's return description now reaches the model the way
+  pydantic-ai sends one.</strong> Each description carried its own <code>Returns:</code> line in
+  the middle of the prose, where the framework wraps a docstring's <code>Returns:</code>
+  section in <code>&lt;summary&gt;</code> and <code>&lt;returns&gt;</code> tags - so a host registering these
+  beside tools of its own put two conventions in one tool list, and the
+  structural half of <code>task</code>, <code>wait_tasks</code> and <code>check_task</code> was a paragraph the
+  model had to notice rather than a field it was handed. Every tool text is a
+  <code>ToolText</code> now, rendered into the framework's shape, and the test pins that
+  shape against a tool pydantic-ai renders itself rather than against a string
+  literal.</li>
+</ul>
+<p>Four of the ten said nothing about what came back at all. They do now, and it
+  is the part worth having: <code>check_task</code> returns a result in full where
+  <code>wait_tasks</code> may cut one and mark it, and re-delegating a task to "finish" a
+  marked result is the mistake that sentence exists to prevent.</p>
+<p>The dynamic half - the subagent list on <code>task</code>, the model list on <code>delegate</code>
+  and <code>create_agent</code> - is rendered <em>inside</em> the summary. Appended after it, as a
+  first attempt did, the tags bracket half the text.</p>
+<ul>
+<li><strong><code>delegate</code> no longer restates its own parameters.</strong> <code>## Parameters</code> listed
+  five arguments the docstring already describes, and a schema description is
+  where the model reads them; the copy in the prose was a second one that no
+  test compares against the signature.</li>
+</ul>
+<h2 id="0220-2026-08-17">[0.2.20] - 2026-08-17<a class="headerlink" href="#0220-2026-08-17" title="Permanent link">&para;</a></h2>
+<h3 id="fixed_1">Fixed<a class="headerlink" href="#fixed_1" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong><code>check_task</code> and <code>wait_tasks</code> no longer hand a delegate's provider text to
+  the model.</strong> Both composed their failure lines from <code>handle.error</code>, which
+  embeds the exception's own message -- and a model client's message carries the
+  failing request URL with the key still in its query string on a custom
+  <code>base_url</code>. What a status tool returns is a tool <em>return</em>, which a host stores
+  whole and renders to everyone who can read the run, so the key landed on a
+  stored transcript row. The four lines (<code>Error:</code>, <code>Retry N:</code>, <code>Outcome:</code> in
+  <code>check_task</code>, and the terminal line in <code>wait_tasks</code>) now name the exception's
+  class, taken from <code>TaskHandle.exception</code>. <code>handle.error</code> is unchanged and still
+  holds the whole thing for a host to log.</li>
+</ul>
+<p>The <code>RETRYING</code> line leaked for delegations that eventually <strong>succeed</strong>:
+  <code>finish</code> clears <code>error</code> on completion, but a model that polled mid-retry
+  already had the answer on a transcript row.</p>
+<p>The <code>usage limit exceeded</code> marker survives -- it is this library's own text,
+  and it is what tells a model to stop delegating rather than retry.</p>
+<p><strong>Behaviour change</strong> for a host that read those strings expecting the
+  exception's message: it is on <code>handle.error</code>, and <code>handle.exception</code> is the
+  supported way to compose your own.</p>
+<h2 id="0219-2026-08-16">[0.2.19] - 2026-08-16<a class="headerlink" href="#0219-2026-08-16" title="Permanent link">&para;</a></h2>
+<h3 id="added">Added<a class="headerlink" href="#added" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong><code>TaskHandle.exception</code> carries the exception behind <code>error</code>.</strong> It is set
+  wherever <code>error</code> embeds an exception's own text -- a contained crash, an
+  exhausted retry budget, a usage limit, a propagated crash with
+  <code>contain_errors=False</code>, and each transient retry -- and cleared by the
+  winning terminal transition, so a completion leaves it <code>None</code>. A host that
+  must not surface a foreign message (a provider error can carry the failing
+  request URL, key included, in its text) reads the class from here, composes
+  its own sentence, and logs the original instead of parsing <code>error</code>.
+  <code>finish()</code> takes the exception as a keyword for the same reason.</li>
+</ul>
+<h2 id="0218-2026-08-05">[0.2.18] - 2026-08-05<a class="headerlink" href="#0218-2026-08-05" title="Permanent link">&para;</a></h2>
+<p><code>default_model</code> no longer defaults to a model of the library's choosing. There is
+now <strong>no implicit default</strong>: it defaults to <code>None</code>, and anything that would have
+relied on the old fallback is refused instead of run.</p>
+<p>The old default was <code>"openai:gpt-4.1"</code>. A consumer that never set <code>default_model</code>
+got a delegate compiled against that string, which resolves whatever provider
+credential the process environment happens to hold. On a deployment holding no
+such key the build raised; on one that had <code>OPENAI_API_KEY</code> set it ran silently --
+in a multi-tenant host, a caller's work on a credential that was not theirs, off
+any per-caller model, budget or vault the host meant to enforce. The general-purpose
+delegate was the sharpest edge: it was always compiled from <code>default_model</code> at
+construction, so a host resolving a model per tenant had no single value to give it.</p>
+<h3 id="changed">Changed<a class="headerlink" href="#changed" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong><code>default_model</code> defaults to <code>None</code></strong> on <code>create_subagent_toolset</code>,
+  <code>SubAgentToolset</code>, <code>SubAgentCapability</code> and <code>create_agent_factory_toolset</code>. Pass
+  it to name the model subagents fall back on, or leave it unset to require every
+  subagent and every dynamic call to name one.</li>
+<li><strong>The general-purpose delegate is now built the way every other subagent is</strong> --
+  through <code>_compile_subagent</code>, from <code>default_model</code> or from <code>default_agent_factory</code>
+  when one is given. A host that resolves a model, a credential and a budget per
+  caller passes a <code>default_agent_factory</code> and gets a delegate it can account for,
+  rather than one the library compiled behind its back.</li>
+</ul>
+<h3 id="fixed_2">Fixed<a class="headerlink" href="#fixed_2" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong><code>include_general_purpose=True</code> with neither <code>default_model</code> nor
+  <code>default_agent_factory</code> now raises at construction</strong>, naming the three ways out,
+  instead of failing later inside the model call (or not failing, on the wrong
+  credential).</li>
+<li><strong>A <code>create_agent</code>, <code>delegate</code> or <code>task</code> call that names no model is refused with
+  a tool result</strong> when there is no default -- the model can name one and call again
+  -- instead of the library choosing one for it.</li>
+<li><strong>A configured subagent that names no model, and supplies no <code>agent</code> or
+  <code>agent_factory</code>, is refused when <code>default_model</code> is unset</strong>, with a message
+  saying what it needs.</li>
+</ul>
+<p>Migration: a consumer relying on the old implicit <code>"openai:gpt-4.1"</code> should pass
+<code>default_model="openai:gpt-4.1"</code> explicitly. One that already names a model on
+every subagent and every call, or builds its own agents through a factory, needs
+no change.</p>
+<h2 id="0216-2026-08-03">[0.2.16] - 2026-08-03<a class="headerlink" href="#0216-2026-08-03" title="Permanent link">&para;</a></h2>
+<p>Security housekeeping. <strong>Nothing in the published package changes</strong>: all five
+advisories are against development and documentation dependencies -- <code>pytest</code>,
+<code>requests</code>, <code>urllib3</code>, <code>pygments</code>, <code>pymdown-extensions</code> -- none of which this
+library depends on at run time. Its runtime dependencies are still <code>pydantic</code>,
+<code>pydantic-ai-slim</code> and <code>typing-extensions</code>. The exposure was this repository's CI
+and a maintainer's docs build, not anybody's install.</p>
+<h3 id="security">Security<a class="headerlink" href="#security" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong><code>urllib3</code> 2.6.3 -&gt; 2.7.0</strong>, closing two high-severity advisories:
+  decompression-bomb safeguards bypassed in parts of the streaming <abbr title="Application Programming Interface">API</abbr>, and
+  sensitive headers forwarded across origins in proxied low-level redirects.</li>
+<li><strong><code>pymdown-extensions</code> 10.20 -&gt; 11.0.1</strong>, closing two: path traversal in the
+  <code>b64</code> extension letting <code>&lt;img src&gt;</code> read files outside <code>base_path</code>, and a
+  regression reintroducing the sibling-prefix traversal bypass in
+  <code>pymdownx.snippets</code> despite <code>restrict_base_path</code>. A major bump, so the docs
+  build was checked for rendered output rather than just an exit code -- the
+  changelog page is a <code>pymdownx.snippets</code> include of <code>CHANGELOG.md</code> from outside
+  <code>docs/</code>, which is exactly what the second advisory tightened.</li>
+<li><strong><code>requests</code> 2.32.5 -&gt; 2.34.2</strong>, closing insecure temporary-file reuse in
+  <code>extract_zipped_paths()</code>.</li>
+<li><strong><code>pytest</code> 9.0.2 -&gt; 9.1.1</strong>, closing vulnerable <code>tmpdir</code> handling.</li>
+<li><strong><code>pygments</code> 2.19.2 -&gt; 2.20.0</strong>, closing a ReDoS in the GUID-matching regex.</li>
+<li><strong><code>.github/workflows/ci.yml</code> declares <code>permissions: contents: read</code>.</strong> It had no
+  permissions block at all, so all four of its jobs inherited the repository
+  default -- which can be write -- and an action compromised anywhere in the test
+  matrix would have inherited it too. Four CodeQL <code>actions/missing-workflow-permissions</code>
+  alerts, closed by one top-level block. The other three workflows already
+  declared theirs.</li>
+</ul>
+<p>Version constraints in <code>pyproject.toml</code> are deliberately unchanged: CI installs
+from the lockfile, which is what both Dependabot and Renovate patch, and raising
+a floor for a transitive dependency states a fact about a resolution rather than
+about this package.</p>
+<h2 id="0215-2026-08-02">[0.2.15] - 2026-08-02<a class="headerlink" href="#0215-2026-08-02" title="Permanent link">&para;</a></h2>
+<p>Three defects found integrating the library into a platform where every agent is
+built with <code>output_type=[str, DeferredToolRequests]</code>, which made the first one the
+default path rather than an edge case.</p>
+<p>One entry changes observable behaviour: a suspended delegation now reports
+<code>deferred</code> where it used to report <code>completed</code> (a real defect) or <code>failed</code> (an
+honest but wrong label). Code branching on <code>TaskStatus.FAILED</code> to detect a
+human-in-the-loop delegation needs updating.</p>
+<h3 id="fixed_3">Fixed<a class="headerlink" href="#fixed_3" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>A suspended subagent was reported to the parent as a completed task.</strong>
+  <code>_ALWAYS_PROPAGATE</code> guards the exception route, but an agent whose <code>output_type</code>
+  includes <code>DeferredToolRequests</code> never raises: pydantic-ai ends its run normally
+  with the parked calls as the output, exactly as it does for a top-level run a
+  caller is expected to resume. That reached <code>serialize_output</code>, so the parent
+  agent received <code>{"calls": [], "approvals": [...]}</code> as the specialist's answer,
+  summarised it, and carried on -- with <code>handle.status</code> saying <code>completed</code> and the
+  approval surfaced nowhere. It is the outcome the module docstring says the
+  design prevents, arriving by the output instead of the exception. A deferred
+  output is now the fifth entry in the error contract: the handle is marked
+  <code>DEFERRED</code>, the parked calls are kept on <code>TaskHandle.deferred_requests</code>, and the
+  matching signal is raised (<code>ApprovalRequired</code> when anything needs approving,
+  <code>CallDeferred</code> otherwise) so the parent run suspends too. The suspended run's
+  chat trace is deliberately not saved -- continuing it would resume from a point
+  whose deferred results were never supplied.</li>
+<li><strong><code>cancel_all</code> waited on cancelled tasks without a bound, inside a <code>finally</code>.</strong>
+  <code>SubAgentCapability.wrap_run</code> calls it when a run ends, and it awaited each
+  cancelled task indefinitely. A <code>CancelledError</code> can be caught, and a subagent's
+  toolset is arbitrary consumer code, so one task that swallowed the cancel held
+  the parent run's teardown open forever with nothing logged. The wait is now
+  bounded by <code>cancel_grace_seconds</code> (5 s by default, configurable on
+  <code>TaskManager</code>, <code>create_subagent_toolset</code> and <code>SubAgentCapability</code>); a task still
+  alive after it is logged with its task id and left to the event loop. The
+  suppression around the wait is also no longer able to hide an <em>outer</em>
+  cancellation for longer than the grace period, which is the case that matters:
+  the parent is usually being cancelled from outside when this runs.</li>
+</ul>
+<h3 id="added_1">Added<a class="headerlink" href="#added_1" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong><code>event_stream_handler</code> on <code>create_subagent_toolset</code> and <code>SubAgentCapability</code>.</strong>
+  Streaming a delegation was possible but only by setting the handler on each
+  agent instance -- which a dynamically created specialist does not have, since the
+  library builds it, making "stream subagents" and "let the model create
+  specialists" quietly incompatible. The handler is now resolved per delegation,
+  so both work together. An agent supplied as <code>SubAgentConfig["agent"]</code> keeps its
+  own handler: the specific choice wins, and the toolset's is the default for
+  everything else.</li>
+<li><strong><code>event_stream_handler_factory</code></strong>, resolved per delegation from the parent run
+  context, the subagent config and the task id. The task id is the argument that
+  makes a fan-out readable -- three specialists streaming into one callback are
+  otherwise indistinguishable. Mutually exclusive with <code>event_stream_handler</code>,
+  which is refused at construction: both are callables, so nothing downstream
+  could tell them apart.</li>
+<li><strong><code>TaskStatus.DEFERRED</code></strong> and <strong><code>TaskHandle.deferred_requests</code></strong>, and
+  <code>DEFERRED</code> joins <code>TERMINAL_STATUSES</code>.</li>
+<li><strong><code>docs/advanced/streaming.md</code></strong>, which is also the first documentation that
+  streaming a subagent is possible at all.</li>
+</ul>
+<h3 id="changed_1">Changed<a class="headerlink" href="#changed_1" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>A human-in-the-loop delegation reports <code>DEFERRED</code>, not <code>FAILED</code>.</strong> Both the
+  sync route (where the signal propagates) and the background route (where it
+  cannot be delivered) previously recorded <code>FAILED</code>, sending a caller looking for
+  a defect when what the delegation needs is a person to decide. The background
+  message is unchanged and still tells the model to delegate with <code>mode="sync"</code>.
+  <code>UserError</code> and the <code>Skip*</code> signals still record <code>FAILED</code>.</li>
+</ul>
+<h2 id="0214-2026-08-01">[0.2.14] - 2026-08-01<a class="headerlink" href="#0214-2026-08-01" title="Permanent link">&para;</a></h2>
+<p>A re-audit of 0.2.13, verifying each of that release's fixes and then sweeping the
+areas the audit behind it had listed as uncovered. The fixes in 0.2.13 were all
+correct; they had been applied to the sites the report named rather than to the
+class of defect, and the class was still open elsewhere.</p>
+<p>Three entries change observable behaviour, in each case to match what the docs
+already promised: <code>can_ask_questions=False</code> now removes <code>ask_parent</code>,
+<code>max_questions</code> is enforced, and a <code>chat_trace_id</code> from another run is refused.
+Code relying on the old behaviour was relying on a defect, but it is worth knowing
+about before upgrading.</p>
+<h3 id="fixed_4">Fixed<a class="headerlink" href="#fixed_4" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong><code>can_ask_questions=False</code> did not disable <code>ask_parent</code>.</strong> The flag was honoured
+  when <code>_execute</code> injects the tool for a runtime specialist and ignored when
+  <code>_compile_subagent</code> builds a configured subagent, so the tool was attached
+  regardless. In background mode that is a stall, not a cosmetic issue: the
+  subagent parks the task in <code>WAITING_FOR_ANSWER</code> for the full
+  <code>ask_timeout_seconds</code> (300 s by default) while the parent's own instructions
+  describe that subagent as one that <em>cannot ask clarifying questions</em>, so nothing
+  ever calls <code>answer_subagent</code>. The tool is now attached only when the flag allows
+  it.</li>
+<li><strong>Any run could resume any other run's chat trace.</strong> Task handles record
+  <code>parent_run_id</code> and every tool that takes a <code>task_id</code> is scoped, but traces were
+  keyed by <code>(subagent_name, chat_trace_id)</code> with no owner at all — so a run passing
+  an id it had seen got the other run's whole conversation replayed into its
+  subagent's <code>message_history</code>. <code>ChatTraceStore</code> now records the claiming run, and a
+  foreign trace reads exactly like an unknown one. The check runs before the
+  "already has a running task" branch, which would otherwise confirm the id exists.
+  A trace claimed without a <code>run_id</code> stays open, matching <code>_handle_for</code>.</li>
+<li><strong><code>wait_tasks</code> awaited another run's live task.</strong> It filtered its listing through
+  <code>_handle_for</code> and built the set it awaited from <code>task_manager.tasks</code> directly, so
+  a foreign id blocked the caller for the whole <code>timeout</code> and then reported "not
+  found". The wall-clock difference against a genuinely unknown id (which returns
+  instantly) was an existence oracle over foreign task ids. The isolation test
+  missed it for the same reason the 0.2.13 cancel defect shipped: its fixture
+  registers a handle with no <code>asyncio.Task</code>, so the await never happened.</li>
+<li><strong>The unknown-subagent error enumerated every run's dynamic agents.</strong> One registry
+  is shared by every run of an agent, and <code>create_agent</code> names are model-authored
+  and describe the work, so the list told one tenant what the others were doing. The
+  error names the configured subagents and says dynamic agents exist without naming
+  them. The registry itself stays shared — a persistent agent is meant to outlive
+  one run.</li>
+<li><strong><code>wait_tasks</code> counted a missing task as still running.</strong> <code>still running</code> was
+  <code>total - finished</code>, so the same message said <code>not found</code> and <code>1 still running</code>
+  about one id and the orchestrator kept polling something that will never resolve.
+  Missing ids are now counted and reported separately.</li>
+<li><strong><code>max_questions</code> was prompt text, documented as a limit.</strong> It reached the
+  subagent only as a sentence in its task prompt, which a model is free to ignore —
+  and each ignored question costs up to <code>ask_timeout_seconds</code>. It is now a counter
+  on the delegation: past the limit, <code>ask_parent</code> returns immediately without
+  waiting for the parent. The budget is per delegation, so a task continuing a chat
+  trace gets a full allowance.</li>
+<li><strong><code>check_task</code>'s tool description named four of seven statuses.</strong> 0.2.13 added the
+  <code>cancelled</code> and <code>retrying</code> renderings without updating the description that
+  enumerated the statuses a model should expect. It now describes what each terminal
+  state returns instead of listing values that drift.</li>
+<li><strong><code>typing-extensions</code> was imported but not declared.</strong> <code>types.py</code> imports it at
+  module scope for <code>NotRequired</code>/<code>TypedDict</code>; it was only present transitively via
+  <code>pydantic</code>. Now a direct dependency.</li>
+</ul>
+<h2 id="0213-2026-08-01">[0.2.13] - 2026-08-01<a class="headerlink" href="#0213-2026-08-01" title="Permanent link">&para;</a></h2>
+<p>Findings from a full-repo audit. Every defect here sat in a place the tooling
+could not see: a disagreement between two call sites that each read fine alone, or
+documentation describing behaviour the code did not implement.</p>
+<h3 id="fixed_5">Fixed<a class="headerlink" href="#fixed_5" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Any run could cancel another run's live background task.</strong> <code>soft_cancel_task</code>
+  and <code>hard_cancel_task</code> guarded with <code>handle is None and task_id not in tasks</code> —
+  and a foreign task that is actually running satisfies exactly that, so the guard
+  fell through and the cancel went ahead. <code>check_task</code> hid the same task correctly,
+  so one tenant on a shared agent could kill another tenant's work with an id it
+  read out of tool output. A handle scoped to another run now reads exactly like a
+  missing one. The existing isolation test passed against the defect because its
+  fixture registered no <code>asyncio.Task</code>; the new test starts a real background
+  delegation and asserts the task survives.</li>
+<li><strong><code>check_task</code> told the model a cancelled task was still running.</strong> <code>CANCELLED</code>
+  and <code>RETRYING</code> fell through to an elapsed-time line computed from <code>started_at</code>,
+  so a task cancelled two hours ago reported <code>Running for: 7200.0s</code> and never said
+  why it stopped. Both statuses now report their outcome.</li>
+<li><strong>A retried attempt got a fresh usage allowance.</strong> <code>run_with_retry</code> forwarded
+  <code>usage_limits</code> into every attempt but no <code>usage</code>, so <code>Agent.iter</code> built a new
+  <code>RunUsage</code> each time while the replayed history genuinely re-spent the tokens —
+  with the default <code>max_retries=3</code> the real ceiling was 4× what the caller
+  configured. Attempts now share one tally, which is what
+  <code>docs/advanced/usage-limits.md</code> already promised.</li>
+<li><strong><code>retry_count</code> was always 0 for sync delegations.</strong> <code>_run_sync</code> passed no
+  <code>on_retry</code>, and <code>sync</code> is the default mode for both <code>task</code> and <code>delegate</code>, so the
+  handle field documented for spotting a flaky gateway reported nothing from the
+  path most delegations take.</li>
+<li><strong><code>SubAgentCapability</code> could not reach <code>ask_user</code>.</strong> It forwarded 15 of
+  <code>create_subagent_toolset</code>'s parameters and silently dropped <code>ask_user</code>,
+  <code>max_chat_traces</code>, and <code>max_task_handles</code>. <code>ask_user</code> is the only channel a
+  sync-mode subagent has for <code>ask_parent</code>, so the advertised question feature was
+  off by construction on the primary entry point — and the error text pointed at a
+  remedy the capability did not accept. All three are now fields, and a parity test
+  fails if the toolset grows an argument the capability cannot reach.</li>
+<li><strong><code>max_agents=0</code> meant unlimited.</strong> <code>DynamicAgentRegistry.register</code> tested
+  <code>if self.max_agents and ...</code>, reading <code>0</code> as falsy. It now tests <code>is not None</code>, so
+  <code>0</code> rejects every registration and <code>None</code> stays unlimited. <code>max_agents</code>,
+  <code>max_chat_traces</code>, and <code>max_task_handles</code> are validated at construction:
+  <code>max_agents &gt;= 0</code>, and the two stores <code>&gt;= 1</code> since a store that cannot hold one
+  entry evicts everything before it can be read back.</li>
+<li><strong><code>validate_agent_name</code> enforced a wider rule than it stated.</strong> <code>str.isalnum</code> is
+  Unicode-aware, so Cyrillic and fullwidth-digit names passed an allow-list the
+  model was told read "letters, numbers, and hyphens", while <code>café</code> was rejected
+  only over a combining accent. It is an explicit ASCII match now.</li>
+<li><strong>Sync and async recorded different errors for the same exhausted budget.</strong>
+  <code>handle.error</code> was <code>usage limit exceeded</code> in sync mode and
+  <code>UsageLimitExceeded: ...</code> in background mode, so telemetry had to know how a
+  delegation had been dispatched. Both modes now write <code>usage limit exceeded: ...</code>.</li>
+</ul>
+<h3 id="changed_2">Changed<a class="headerlink" href="#changed_2" title="Permanent link">&para;</a></h3>
+<ul>
+<li><code>docs/advanced/errors.md</code> no longer claims a per-task usage budget is a soft
+  outcome, or distinguishes a "shared" <code>UsageLimitExceeded</code>: the library never
+  hands a child run the parent's tally, so every subagent budget is its own. It now
+  states what actually differs — sync propagates, background contains.</li>
+</ul>
+<h2 id="0212-2026-08-01">[0.2.12] - 2026-08-01<a class="headerlink" href="#0212-2026-08-01" title="Permanent link">&para;</a></h2>
+<p>Correctness, typing, and documentation pass over the whole library. Every public
+entry point keeps its name and signature, so no import or call site changes.</p>
+<h3 id="fixed_6">Fixed<a class="headerlink" href="#fixed_6" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Task statuses leaked their enum member name to the model.</strong> <code>TaskStatus</code> is a
+  <code>str</code>-mixin <code>Enum</code>, and Python 3.11 changed <code>Enum.__format__</code> for mixin enums, so
+  <code>check_task</code> reported <code>Status: TaskStatus.WAITING_FOR_ANSWER</code> on 3.11+ while the
+  tool descriptions and docs promised <code>waiting_for_answer</code>. <code>list_active_tasks</code> and
+  <code>wait_tasks</code> had the same leak. Statuses, priorities, and message types now render
+  as their values on every supported Python.</li>
+<li><strong>Deferred tools and human approval could not work inside a subagent.</strong>
+  <code>except Exception</code> around the run swallowed pydantic-ai's control-flow signals
+  (<code>CallDeferred</code>, <code>ApprovalRequired</code>, <code>SkipModelRequest</code>, <code>SkipToolValidation</code>,
+  <code>SkipToolExecution</code>) and turned them into a string result the parent read as a
+  finished task. Those signals, <code>UserError</code>, and a shared <code>UsageLimitExceeded</code> now
+  propagate. A background delegation cannot suspend at all, so it reports a <code>failed</code>
+  status explaining to delegate with <code>mode="sync"</code> instead.</li>
+<li><strong>A failed delegation looked like a successful one.</strong> A crash returned
+  <code>"Error executing task: ..."</code> as a normal tool result, so pydantic-ai's retry
+  budget never engaged and the failure could be folded into a final answer. Failures
+  now reach the parent as <code>ModelRetry</code>. See <code>contain_errors</code> and <code>on_failure</code> under
+  <em>Added</em>.</li>
+<li><strong>Background tasks outlived their parent run.</strong> Nothing cancelled the
+  <code>asyncio.Task</code> behind a background delegation when the run ended, so it kept
+  executing against torn-down deps, and one blocked in <code>ask_parent</code> waited out the
+  full timeout. <code>SubAgentCapability</code> now cancels its run's tasks in a <code>wrap_run</code>
+  finalizer, and <code>TaskManager.cancel_all()</code> exposes the same thing to the toolset <abbr title="Application Programming Interface">API</abbr>.</li>
+<li><strong>Tasks were not isolated per run.</strong> One toolset instance is typically built per
+  agent and shared by every run it serves, so any run could inspect, answer, steer,
+  or cancel another run's task by id. Handles record <code>parent_run_id</code> and the tools
+  refuse ids belonging to another run.</li>
+<li><strong><code>hard_cancel</code> could overwrite a completed task's result.</strong> The guard was
+  <code>if not task.done()</code>, which is still true while the task runs its <code>finally</code>, so a
+  cancel arriving in that window replaced the real result with <code>cancelled</code>.
+  <code>TaskHandle.finish()</code> makes the first terminal transition win.</li>
+<li><strong>The library wrote a private attribute onto the caller's deps object.</strong>
+  <code>deps._subagent_state = {...}</code> raised <code>AttributeError</code> for a deps class declared
+  <code>frozen=True</code> or <code>slots=True</code>, both of which <code>SubAgentDepsProtocol</code> allows. The
+  state is a typed <code>SubAgentState</code> carried in a <code>ContextVar</code> instead. Reading a
+  caller-injected <code>deps._subagent_state</code> still works.</li>
+<li><strong>Timestamps were naive local time.</strong> <code>TaskHandle.created_at</code>, <code>started_at</code>, and
+  <code>completed_at</code> are timezone-aware UTC, so elapsed time and eviction order stay
+  correct across a DST transition.</li>
+<li><strong><code>get_subagent_system_prompt(include_dual_mode=...)</code> was accepted and ignored.</strong>
+  It now appends <code>DUAL_MODE_SYSTEM_PROMPT</code> when asked. The default changed to
+  <code>False</code>, so output is unchanged for callers that never passed it.</li>
+<li><strong>Steering could be spliced into the wrong place.</strong> Parent-to-child steering
+  appended <code>UserPromptPart</code>s directly into a graph node's request. It now goes
+  through pydantic-ai's <code>AgentRun.enqueue</code>, so core places the parts and they can
+  never land between a tool call and its return.</li>
+<li><strong>The retry driver had drifted from the loop it mirrors.</strong> <code>Agent.run</code> drains the
+  wrapped event stream after the handler returns, unconditionally; the copy drained
+  only when there was no handler, leaving stream wrappers unfinished for a handler
+  that stopped reading early.</li>
+<li><strong>409 Conflict and 425 Too Early were retried as transient.</strong> Both signal a request
+  the server rejected on its merits, so replaying it unchanged is not expected to
+  help.</li>
+<li><strong>A message-bus handler that raised was silently swallowed</strong> by a bare
+  <code>except Exception: pass</code>. Failures are logged and delivery continues.</li>
+<li><strong><code>asyncio.get_event_loop()</code> inside a coroutine</strong> (deprecated since 3.10) is now
+  <code>get_running_loop()</code>.</li>
+<li><strong>Cancelling a finished task reported "not found"</strong>, inviting the model to conclude
+  the work was lost. It now reports the task's status and points at <code>check_task</code>.</li>
+<li><strong><code>make typecheck-mypy</code> was broken.</strong> The <code>module = "tests.*"</code> override never
+  matched, because <code>tests/</code> had no <code>__init__.py</code> and mypy named the modules
+  <code>test_toolset</code> rather than <code>tests.test_toolset</code>; the target reported 583 errors the
+  config intended to relax. It is green and runs in CI.</li>
+</ul>
+<h3 id="added_2">Added<a class="headerlink" href="#added_2" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong><code>contain_errors</code></strong> on <code>create_subagent_toolset</code>, <code>SubAgentCapability</code>, and
+  <code>SubAgentConfig</code>. Defaults to <code>True</code>: an unexpected subagent crash becomes a
+  <code>ModelRetry</code> for the parent, logged with its traceback, so one failed delegation
+  cannot abort the run. Set <code>False</code> to let crashes propagate.</li>
+<li><strong><code>on_failure</code></strong> on <code>SubAgentConfig</code>. Returns a steering message to the parent as
+  an ordinary tool result instead of raising <code>ModelRetry</code>, for a failure where
+  re-delegating is pointless.</li>
+<li><strong><code>ask_timeout_seconds</code></strong> on <code>create_subagent_toolset</code> and <code>SubAgentCapability</code>,
+  replacing a hardcoded 300-second wait in <code>ask_parent</code>.</li>
+<li><strong><code>SubAgentToolset</code> is a real class.</strong> It was an alias for
+  <code>create_subagent_toolset</code>, whose result had <code>task_manager</code>,
+  <code>message_history_store</code>, and <code>get_total_usage</code> attached afterwards behind three
+  <code>type: ignore</code> comments. It is now a <code>FunctionToolset</code> subclass with those as typed
+  members, and <code>create_subagent_toolset()</code> returns an instance —
+  <code>SubAgentToolset(subagents=[...])</code>, <code>toolset.task_manager</code>, and
+  <code>isinstance(t, FunctionToolset)</code> all keep working.</li>
+<li><strong><code>TaskHandle.finish()</code> and <code>TaskHandle.is_finished</code></strong> for idempotent terminal
+  transitions, plus <code>TERMINAL_STATUSES</code> and <code>utcnow</code> as exports.</li>
+<li><strong><code>TaskManager.cancel_all()</code></strong> and <strong><code>TaskManager.resolve_answer()</code></strong>.</li>
+<li><strong><code>SubAgentToolset.answer_task()</code> and <code>SubAgentToolset.steer_task()</code></strong> — the
+  Python halves of the <code>answer_subagent</code> and <code>send_message_to_subagent</code> tools, for
+  an application that drives delegation itself instead of letting a model call the
+  tools. Both return a <code>bool</code> rather than raising. The tools now delegate to them,
+  so there is one implementation.</li>
+<li><strong><code>SubAgentSpec</code> covers the whole serialisable config.</strong> It mirrored 11 keys, so a
+  YAML-defined subagent could not set <code>max_retries</code>, any <code>retry_*</code> option,
+  <code>agent_kwargs</code>, <code>on_failure</code>, or <code>contain_errors</code> — the loader silently ignored
+  what it had no field for. It also validates now: <code>max_retries</code> cannot be negative,
+  <code>retry_backoff_multiplier</code> cannot shrink the delay, and <code>retry_max_delay</code> cannot
+  sit below <code>retry_initial_delay</code> (which pinned every retry to the cap instead of
+  backing off). <code>tests/test_spec.py</code> fails if the config gains a serialisable key
+  the spec cannot carry.</li>
+</ul>
+<h3 id="removed">Removed<a class="headerlink" href="#removed" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong><code>SubAgentDepsProtocol.subagents</code>.</strong> The library never read it, so every
+  application carried a <code>dict</code> for nothing. Dropping a requirement only widens what
+  satisfies the protocol, so a deps class that still declares the field is
+  unaffected.</li>
+</ul>
+<h3 id="changed-breaking">Changed (breaking)<a class="headerlink" href="#changed-breaking" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong><code>delegate</code> requires a <code>name</code>.</strong> A one-shot specialist was labelled
+  <code>oneshot-{task_id}</code>, which told an operator reading logs or a <code>TaskHandle</code>
+  nothing about what the specialist was for. The caller now supplies the label
+  (letters, numbers, hyphens, validated the same way as <code>create_agent</code>), and it
+  becomes <code>TaskHandle.subagent_name</code>. Naming a one-shot still does not register it:
+  it does not count toward <code>max_agents</code>, cannot be reached via <code>task</code>, and reports
+  no chat trace. Any code or prompt that calls <code>delegate</code> must pass <code>name</code>.</li>
+</ul>
+<h3 id="changed_3">Changed<a class="headerlink" href="#changed_3" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong><code>SubAgentConfig</code> enforces its required keys.</strong> <code>name</code>, <code>description</code>, and
+  <code>instructions</code> were documented as required but optional to the type checker, and
+  the library indexed them directly, so a config missing one raised <code>KeyError</code> mid
+  delegation. Call sites are unchanged; both type checkers now catch it.</li>
+<li><strong>Typing bar raised to match <code>pydantic-ai-harness</code>.</strong> pyright runs in <strong>strict</strong>
+  mode, <code>src/</code> has no <code>type: ignore</code>, mypy strict covers tests as well as source, and
+  ruff's complexity ceiling dropped from 30 to 15 with no per-function <code>noqa</code>.
+  <code>TaskHandle.usage</code> is <code>RunUsage | None</code>, <code>finish_reason</code> is <code>FinishReason | None</code>,
+  and <code>TaskManager.handles</code> is <code>dict[str, TaskHandle]</code>.</li>
+<li><strong><code>ToolsetFactory</code> returns a <code>Sequence</code></strong>, so a factory annotated
+  <code>list[FunctionToolset[MyDeps]]</code> satisfies it — <code>list</code> is invariant.</li>
+<li><strong><code>toolset.py</code> split into focused modules</strong> (<code>_execution</code>, <code>_observability</code>,
+  <code>_chat_trace</code>, <code>_state</code>), with the historical names still importable from
+  <code>subagents_pydantic_ai.toolset</code>.</li>
+<li><strong>Documentation.</strong> New pages for <a href="https://vstorm-co.github.io/subagents-pydantic-ai/concepts/observability/">observability</a>,
+  <a href="https://vstorm-co.github.io/subagents-pydantic-ai/advanced/steering/">steering</a>, <a href="https://vstorm-co.github.io/subagents-pydantic-ai/advanced/chat-traces/">chat traces</a>,
+  <a href="https://vstorm-co.github.io/subagents-pydantic-ai/advanced/errors/">failure handling</a>, and
+  <a href="https://vstorm-co.github.io/subagents-pydantic-ai/advanced/usage-limits/">usage limits</a>; <abbr title="Application Programming Interface">API</abbr> reference pages for the
+  registry, message bus, retry, spec, and dynamic-agent helpers; a changelog page.
+  Corrected the stale tool and feature tables on the index, the
+  <code>general_purpose_config</code> parameter that never existed, and the nesting guide's
+  claim that <code>max_nesting_depth</code> enforces a limit — it does not, the gate is what
+  <code>toolsets_factory</code> hands the child. Snippets in <code>docs/</code> and <code>README.md</code> are now
+  checked for syntax and <abbr title="Application Programming Interface">API</abbr> drift by <code>tests/test_docs.py</code>.</li>
+</ul>
+<h2 id="0211-2026-07-31">[0.2.11] - 2026-07-31<a class="headerlink" href="#0211-2026-07-31" title="Permanent link">&para;</a></h2>
+<h3 id="added_3">Added<a class="headerlink" href="#added_3" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Configurable delegation modes, including one-shot <code>delegate</code></strong> (<a href="https://github.com/vstorm-co/subagents-pydantic-ai/pull/50">#50</a>). <code>delegation_configuration</code> on <code>create_subagent_toolset</code> and <code>SubAgentCapability</code> picks which delegation entry points the orchestrator sees, so an application exposes only the delegation behaviour it needs instead of every creation and execution option at once:</li>
+<li><code>"default"</code>: <code>task</code> only</li>
+<li><code>"persisted"</code>: <code>create_agent</code> + <code>task</code></li>
+<li><code>"persisted_and_oneshot"</code>: <code>create_agent</code> + <code>task</code> + <code>delegate</code></li>
+<li><code>"oneshot_only"</code>: <code>delegate</code> only</li>
+</ul>
+<p><code>"default"</code> is the existing tool surface, so upgrading adds nothing to a deployed orchestrator. Async lifecycle tools (<code>check_task</code>, <code>wait_tasks</code>, <code>answer_subagent</code>, <code>send_message_to_subagent</code>, cancellation) remain available in every mode.
+- <strong>One-shot delegation via <code>delegate</code>.</strong> Builds an ephemeral specialist from <code>instructions</code> and runs its task in a single call, for ad-hoc work that does not deserve a named, reusable agent. A one-shot never enters the registry, never counts against <code>max_agents</code>, and cannot collide with a persisted agent's name. It also reports no <code>Chat Trace ID</code> and stores no history: <code>task</code> can never resolve an unregistered specialist, so the id would be unredeemable, and keeping its history would let a one-shot fan-out evict genuinely continuable conversations from the <code>max_chat_traces</code> LRU.
+- <strong>Dynamic specialists configurable from the subagent toolset.</strong> <code>create_subagent_toolset</code> and <code>SubAgentCapability</code> now take <code>allowed_models</code>, <code>capabilities_map</code>, <code>default_agent_factory</code>, and <code>max_agents</code>, previously reachable only through <code>create_agent_factory_toolset</code>. The shared validation and construction path lives in the new <code>dynamic_agent.py</code>, so both entry points enforce identical rules. Note that <code>"persisted"</code> and <code>"persisted_and_oneshot"</code> cannot be combined with <code>create_agent_factory_toolset</code> on one agent — both define a <code>create_agent</code> tool and pydantic-ai rejects duplicate tool names across toolsets. Pair <code>"default"</code> with the factory toolset over a shared registry when the parent also needs <code>list_agents</code> / <code>remove_agent</code>; see the dynamic-agents guide.
+- <strong>Configuration a mode cannot reach is rejected at construction.</strong> Hiding a tool also hides everything only that tool reads, so <code>create_subagent_toolset</code> and <code>SubAgentCapability</code> raise <code>ValueError</code> rather than silently dropping arguments that could never take effect: <code>"oneshot_only"</code> rejects <code>subagents</code> and <code>registry</code> (both reachable only through <code>task</code>), and <code>"default"</code> rejects <code>allowed_models</code>, <code>capabilities_map</code>, and <code>default_agent_factory</code> (read only by <code>create_agent</code> and <code>delegate</code>).</p>
+<h3 id="fixed_7">Fixed<a class="headerlink" href="#fixed_7" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong><code>can_ask_questions</code> was a no-op for dynamically created agents.</strong> Agents built at runtime never received the <code>ask_parent</code> toolset that statically compiled subagents get, so a dynamic agent configured to ask its parent had no tool with which to do it. The toolset now injects <code>ask_parent</code> when executing a registry-backed or one-shot agent. A custom <code>default_agent_factory</code> must not attach its own <code>ask_parent</code>, or the tool name is duplicated at run time.</li>
+</ul>
+<h3 id="changed_4">Changed<a class="headerlink" href="#changed_4" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong><code>registry</code> and <code>default_agent_factory</code> are precisely typed.</strong> <code>registry</code> is now <code>DynamicAgentRegistry | None</code> (was <code>Any</code>), since the toolset calls <code>get_compiled</code>, <code>list_agents</code>, <code>exists</code>, and <code>register</code> on it directly, and <code>default_agent_factory</code> uses the new public <code>AgentFactory</code> alias (was <code>Any</code>) across <code>create_subagent_toolset</code>, <code>create_agent_factory_toolset</code>, and <code>SubAgentCapability</code>. Runtime behaviour is unchanged, but a downstream type-checker may now flag a duck-typed registry object.</li>
+</ul>
+<h2 id="0210-2026-07-24">[0.2.10] - 2026-07-24<a class="headerlink" href="#0210-2026-07-24" title="Permanent link">&para;</a></h2>
+<h3 id="fixed_8">Fixed<a class="headerlink" href="#fixed_8" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong><code>wait_tasks</code> truncated results silently, making orchestrators re-delegate finished work</strong> (<a href="https://github.com/vstorm-co/subagents-pydantic-ai/issues/55">#55</a>). A completed task's result was hard-sliced to 2000 characters with no ellipsis, length, or marker of any kind. The orchestrator saw a well-formed answer that stopped mid-sentence, concluded the subagent had been cut off, and dispatched a <em>new</em> task asking it to finish — burning a full extra round-trip on work that was already complete and stored intact. Truncated results now end with an explicit marker stating that the cut is a display limit, that the stored answer is complete, and which <code>check_task(...)</code> call returns the full text; <code>check_task</code> and the <code>wait_tasks</code> tool description say the same, so the orchestrator knows the rule before it ever meets a cut result.</li>
+</ul>
+<h3 id="added_4">Added<a class="headerlink" href="#added_4" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong><code>max_result_chars</code> on <code>create_subagent_toolset</code> and <code>SubAgentCapability</code></strong> (default <code>2000</code>, matching the previous hard-coded limit). Sets the per-result character budget in the <code>wait_tasks</code> listing, so a fan-out of verbose subagents can't flood the orchestrator's context. Pass <code>None</code> to never truncate; a negative value raises <code>ValueError</code>.</li>
+</ul>
+<h2 id="029-2026-07-19">[0.2.9] - 2026-07-19<a class="headerlink" href="#029-2026-07-19" title="Permanent link">&para;</a></h2>
+<h3 id="added_5">Added<a class="headerlink" href="#added_5" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Stateful subagent conversations via <code>chat_trace_id</code></strong> (<a href="https://github.com/vstorm-co/subagents-pydantic-ai/pull/44">#44</a>). Every successful <code>task()</code> result now ends with a <code>Chat Trace ID: &lt;id&gt;</code> line; passing that ID back to <code>task()</code> resumes the same subagent conversation with its full message history (stored per <code>(subagent_name, chat_trace_id)</code>). Guard rails: a trace can only be continued once its current task has finished (continuing a busy trace returns an error instead of racing and losing one branch of history), continuing an unknown/evicted trace returns an error instead of silently starting a fresh conversation, and a failed first run does not advertise a trace ID. The store is LRU-bounded by the new <code>max_chat_traces</code> parameter on <code>create_subagent_toolset</code> (default 100) so long-lived sessions don't grow memory without bound.</li>
+<li><strong>Rich per-task observability on <code>TaskHandle</code></strong> (<a href="https://github.com/vstorm-co/subagents-pydantic-ai/pull/44">#44</a>). Both sync and async runs now populate the handle with <code>usage</code> (including provider detail counters), <code>message_history</code> (JSON), <code>run_id</code>, <code>conversation_id</code>, <code>traceparent</code>/<code>trace_id</code>/<code>span_id</code>, final-response <code>model_name</code>/<code>provider_name</code>/<code>provider_url</code>/<code>provider_response_id</code>/<code>provider_details</code>/<code>finish_reason</code>, summed <code>cost</code> (via genai-prices), and <code>tool_call_counts</code>. Capture is best-effort by design: the run is marked <code>COMPLETED</code> before telemetry is collected, and any capture failure (including message-history capture) logs a warning instead of flipping a successful run to <code>FAILED</code>. Sync tasks now register handles too, so <code>get_total_usage()</code> finally includes sync runs. Retained finished handles are bounded by the new <code>max_task_handles</code> parameter (default 500); evicted handles fold their token usage into <code>get_total_usage()</code> totals so aggregates stay correct.</li>
+</ul>
+<h3 id="changed_5">Changed<a class="headerlink" href="#changed_5" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong><code>check_task()</code> and <code>wait_tasks()</code> no longer embed usage details in tool-return text.</strong> Observability data lives on the <code>TaskHandle</code> (inspect <code>toolset.task_manager</code>) instead of being fed back into the parent's context. <code>check_task</code> shows the <code>Chat Trace ID</code> only for completed tasks, matching <code>wait_tasks</code>, so continuation is never advertised for a run whose history was not saved.</li>
+</ul>
+<h3 id="documentation">Documentation<a class="headerlink" href="#documentation" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Brand refresh</strong> (<a href="https://github.com/vstorm-co/subagents-pydantic-ai/pull/48">#48</a>): new social preview card, Pydantic favicon/logo in mkdocs, unified README header with the "Part of Pydantic Deep Agents" callout and Vstorm OSS ecosystem section.</li>
+<li>New "Stateful conversations (<code>chat_trace_id</code>)" section in <code>docs/concepts/toolset.md</code>, plus the <code>max_chat_traces</code> / <code>max_task_handles</code> factory parameters.</li>
+</ul>
+<h2 id="028-2026-06-26">[0.2.8] - 2026-06-26<a class="headerlink" href="#028-2026-06-26" title="Permanent link">&para;</a></h2>
+<h3 id="fixed_9">Fixed<a class="headerlink" href="#fixed_9" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>pydantic-ai 2.0 compatibility: <code>'RunUsage' object is not callable</code>.</strong> The post-run observability step captured usage via <code>result.usage()</code>, but pydantic-ai 2.0 turned <code>AgentRunResult.usage</code> from a method into a property returning <code>RunUsage</code>. Calling it raised inside the <code>try</code> that marks a task complete, flipping an otherwise-successful subagent run to <code>FAILED</code> — so every delegated task errored. Usage is now read as the <code>result.usage</code> property.</li>
+</ul>
+<h3 id="changed_6">Changed<a class="headerlink" href="#changed_6" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Require <code>pydantic-ai-slim&gt;=2.0</code></strong> (was <code>&gt;=1.74.0</code>): the package now targets the 2.0 <abbr title="Application Programming Interface">API</abbr> (<code>result.usage</code> property; context-less tools registered via <code>tool_plain</code>, which 2.0 made a hard requirement rather than a deprecation).</li>
+</ul>
+<h2 id="027-2026-06-04">[0.2.7] - 2026-06-04<a class="headerlink" href="#027-2026-06-04" title="Permanent link">&para;</a></h2>
+<h3 id="added_6">Added<a class="headerlink" href="#added_6" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Unprompted parent -&gt; child steering via <code>send_message_to_subagent</code></strong> (<a href="https://github.com/vstorm-co/subagents-pydantic-ai/issues/28">#28</a>). A parent agent can now steer a running <strong>async</strong> subagent mid-flight without cancelling it — e.g. "narrow the search to <code>packages/sparta/</code>, it isn't in <code>core/</code>" — so the subagent adapts on its next step while keeping all partial progress, instead of the lossy cancel-and-respawn pattern. The new <code>send_message_to_subagent(task_id, message)</code> tool enqueues a <code>TASK_UPDATE</code> on the message bus for <code>subagent-{task_id}</code>; the run loop drains it at the next model-request boundary (<code>_drive_run</code> gained an <code>inject_messages</code> hook alongside the existing <code>cancel_check</code>) and folds each message into that request as an extra <code>UserPromptPart</code>. Injecting only at model-request boundaries guarantees a steering part is never spliced into a tool-call/tool-return pair. This is distinct from <code>answer_subagent</code>, which only replies to a question the subagent already asked via <code>ask_parent</code>. Sending to a finished or unknown task returns a clear error. Honoured on the retry-driven run path (<code>max_retries &gt; 0</code>, the default); the legacy <code>agent.run()</code> fast path (<code>max_retries == 0</code>) does not expose node boundaries, so steering messages stay queued there.</li>
+</ul>
+<h2 id="026-2026-06-01">[0.2.6] - 2026-06-01<a class="headerlink" href="#026-2026-06-01" title="Permanent link">&para;</a></h2>
+<h3 id="changed_7">Changed<a class="headerlink" href="#changed_7" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Docstring and import hygiene (internal; no behavior change).</strong> Converted reStructuredText-style double-backtick inline code in docstrings and comments to single-backtick Markdown (185 occurrences), so it renders correctly under the mkdocstrings Markdown handler. Hoisted 27 function-local imports to module top where safe; intentionally-lazy, conditional, optional-dependency (<code>try</code>/<code>except ImportError</code>), and circular-import-avoidance imports were left in place.</li>
+</ul>
+<h3 id="fixed_10">Fixed<a class="headerlink" href="#fixed_10" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Retry path skipped node lifecycle hooks without a streaming consumer</strong> (<code>retry.py</code>). The no-streaming branch of <code>_drive_run</code> advanced the run with a bare <code>async for _ in run</code> (<code>AgentRun.__anext__</code>), which fires none of the node hooks (<code>before_node_run</code> / <code>after_node_run</code> / <code>wrap_node_run</code> / <code>on_node_run_error</code>). With the default <code>max_retries=3</code>, any capability that recovers from a node error via <code>on_node_run_error</code> was therefore bypassed. The no-streaming branch now drives via <code>run.next(node)</code> exactly like <code>Agent.run</code> (hooks fire; no streaming overhead).</li>
+<li><strong><code>soft_cancel</code> sent the cancel request to an unregistered receiver</strong> (<code>message_bus.py</code>). It addressed <code>handle.subagent_name</code> (e.g. <code>"researcher"</code>), but the running subagent registers on the bus as <code>subagent-{task_id}</code>, so the send raised a swallowed <code>KeyError</code> and the cooperative-cancel message never arrived. Now sends to <code>subagent-{task_id}</code>.</li>
+<li><strong><code>create_agent</code> tool had no description</strong> (<code>factory.py</code>). The function body opened with an f-string instead of a string literal, so <code>__doc__</code> was <code>None</code> and the computed allowed-models / capabilities text was evaluated and discarded on every call. The model-facing description (with models / capabilities / default model interpolated) is now supplied via the <code>@toolset.tool(description=...)</code> decorator, and the function carries a normal docstring.</li>
+<li><strong>Soft cancellation was non-functional - the cancel event was never consumed</strong> (<code>retry.py</code>, <code>toolset.py</code>). <code>soft_cancel</code> set a per-task <code>asyncio.Event</code> and sent a <code>CANCEL_REQUEST</code>, but nothing in the subagent run path ever checked it, so <code>soft_cancel</code> reported success while the task kept running. <code>run_with_retry</code>/<code>_drive_run</code> now accept an optional <code>cancel_check</code> callable that is polled between graph nodes; <code>run_task</code> wires it to the task's cancel event so a soft-cancelled subagent stops cooperatively at the next node boundary (raising <code>asyncio.CancelledError</code>, which surfaces as <code>TaskStatus.CANCELLED</code>). Honoured on the retry-driven path (<code>max_retries &gt; 0</code>); the legacy <code>agent.run()</code> fast path (<code>max_retries == 0</code>) does not expose node boundaries, so soft cancel is best-effort there.</li>
+<li><strong><code>create_agent</code> silently dropped capabilities with a custom <code>default_agent_factory</code></strong> (<code>factory.py</code>). When a custom <code>default_agent_factory</code> was configured the factory was called with only <code>config</code>, so any requested capabilities/toolsets were discarded even though the success message still reported them as enabled. <code>create_agent</code> now returns an error when capabilities are requested alongside a custom factory, since the factory owns the whole agent build and cannot receive injected toolsets.</li>
+<li><strong><code>create_task</code> assigned a raw string status instead of the enum</strong> (<code>message_bus.py</code>). It set <code>handle.status = "running"</code> rather than <code>TaskStatus.RUNNING</code>; equal via the str-Enum but inconsistent with the rest of the code and breaking any <code>isinstance(status, TaskStatus)</code> check. Now assigns <code>TaskStatus.RUNNING</code>.</li>
+<li><strong><code>hard_cancel</code> clobbered the outcome of an already-finished task</strong> (<code>message_bus.py</code>). It unconditionally set <code>handle.status = "cancelled"</code> and <code>completed_at</code> even when the task had already completed or failed, overwriting the real outcome and racing with <code>run_task</code>'s teardown. The handle update is now guarded under <code>not task.done()</code>, so a finished task keeps its <code>COMPLETED</code>/<code>FAILED</code> status and <code>completed_at</code>.</li>
+</ul>
+<h3 id="documentation_1">Documentation<a class="headerlink" href="#documentation_1" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Documentation accuracy pass and new pages.</strong> Fixed the wrong <code>get_subagent_system_prompt</code> signature and sample output, corrected the dynamic-agents factory defaults (<code>default_model="openai:gpt-4.1"</code>) and its missing options, and corrected the <code>can_ask_questions</code>/<code>max_questions</code> defaults in the config reference. Added a new <strong>Retries</strong> guide and <abbr title="Application Programming Interface">API</abbr> entries for <code>SubAgentSpec</code>, <code>UsageLimitsFactory</code>, <code>AskUserCallback</code>, the prompt/description constants, and the retry helpers (<code>RetryConfig</code>, <code>run_with_retry</code>, <code>is_transient_error</code>, <code>compute_backoff_delay</code>); completed the <code>create_subagent_toolset</code> tool list (added <code>wait_tasks</code>). Documented the <code>SubAgentCapability</code> <code>ask_user</code> limitation, usage limits, and the <code>max_nesting_depth</code>/<code>clone_for_subagent</code> deps contract, and clarified the <code>Agent.from_file</code> / <code>SubAgentSpec</code> YAML-loading paths. <code>mkdocs build --strict</code> passes with zero warnings.</li>
+</ul>
+<h2 id="025-2026-05-24">[0.2.5] - 2026-05-24<a class="headerlink" href="#025-2026-05-24" title="Permanent link">&para;</a></h2>
+<h3 id="infrastructure">Infrastructure<a class="headerlink" href="#infrastructure" title="Permanent link">&para;</a></h3>
+<p>Pure CI / dependency-bot housekeeping — no source-code changes, no behaviour change since 0.2.4. Consolidates the two open Renovate auto-PRs plus the preemptive <code>setup-uv</code> / <code>setup-python</code> major bumps (same set Renovate has been gradually surfacing across the sibling repos) into a single release so downstream consumers see one bump instead of four.</p>
+<ul>
+<li><strong>CI: bump <code>actions/checkout</code> to <code>v6</code></strong> across <code>ci.yml</code> (×3), <code>docs.yml</code>, <code>publish.yml</code> (<a href="https://github.com/vstorm-co/subagents-pydantic-ai/pull/34">#34</a>, Renovate auto-PR — folded in here).</li>
+<li><strong>CI: bump <code>docs.yml</code> Python to <code>3.14</code></strong> (<a href="https://github.com/vstorm-co/subagents-pydantic-ai/pull/33">#33</a>, Renovate auto-PR — folded in here).</li>
+<li><strong>CI: bump <code>astral-sh/setup-uv</code> to <code>v8.1.0</code></strong> across <code>ci.yml</code> (×3) and <code>publish.yml</code>. Pinned to the specific patch because <code>astral-sh/setup-uv</code> does not maintain a rolling <code>v8</code> tag (only <code>v8.0.0</code> / <code>v8.1.0</code>; <code>v7</code> and earlier do have rolling majors).</li>
+<li><strong>CI: bump <code>actions/setup-python</code> to <code>v6</code></strong> in <code>docs.yml</code> — <code>v6</code> has a rolling tag so plain <code>@v6</code> is used.</li>
+</ul>
+<p>The <code>ci.yml</code> test matrix is unchanged.</p>
+<h2 id="024-2026-05-24">[0.2.4] - 2026-05-24<a class="headerlink" href="#024-2026-05-24" title="Permanent link">&para;</a></h2>
+<h3 id="added_7">Added<a class="headerlink" href="#added_7" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong><code>wait_tasks(mode="any")</code> for reactive orchestration</strong> (<a href="https://github.com/vstorm-co/subagents-pydantic-ai/issues/29">#29</a>, <a href="https://github.com/vstorm-co/subagents-pydantic-ai/pull/30">#30</a> by <a href="https://github.com/Gby56">@Gby56</a>) — new <code>mode: Literal["all", "any"] = "all"</code> parameter on <code>wait_tasks</code>. <code>mode="any"</code> returns as soon as the first task reaches a terminal state (completed/failed/cancelled), so an orchestrator can act on the first finisher instead of stalling on the slowest. Default <code>mode="all"</code> is backward-compatible. Output now includes a header (<code>Task results (mode=any, X/Y finished, Z still running):</code>) and explicitly labels <code>CANCELLED</code> tasks.</li>
+</ul>
+<h3 id="fixed_11">Fixed<a class="headerlink" href="#fixed_11" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong><code>wait_tasks</code> no longer cascades cancellation to its workers.</strong> Previously the default (<code>mode="all"</code>) path used <code>asyncio.wait_for(asyncio.gather(...))</code>, both of which propagate cancellation to their constituent tasks. When pydantic-ai's <code>_call_tools</code> sibling-cancel hit the <code>wait_tasks</code> tool call (e.g. another tool raised during a parallel turn), or any outer cancel reached the orchestrator, the cascade silently killed every in-flight subagent — they surfaced as <code>TaskStatus.CANCELLED</code> with an empty <code>error</code> string even though the parent never requested it. Both modes now use <code>asyncio.wait(..., return_when=...)</code>, which does not cancel its awaitees on timeout or caller cancellation. Workers keep owning their own lifecycle. Diagnosed by <a href="https://github.com/Gby56">@Gby56</a>.</li>
+</ul>
+<h2 id="023-2026-05-17">[0.2.3] - 2026-05-17<a class="headerlink" href="#023-2026-05-17" title="Permanent link">&para;</a></h2>
+<h3 id="added_8">Added<a class="headerlink" href="#added_8" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Auto-retry for transient subagent failures</strong> — subagents are resilient to flaky model gateways/proxies (e.g. a LiteLLM gateway returning 502/503/429 or dropping connections) <strong>by default</strong>. New <code>subagents_pydantic_ai.retry</code> module:</li>
+<li><code>is_transient_error(exc)</code> — classifies retryable failures: <code>ModelHTTPError</code> with a 408/409/425/429/5xx status, and non-HTTP <code>ModelAPIError</code> (transport/connection errors). Auth/4xx, <code>UnexpectedModelBehavior</code>, <code>UsageLimitExceeded</code>, validation errors and task cancellation are <strong>not</strong> retried.</li>
+<li><code>RetryConfig</code> (frozen dataclass) + <code>RetryConfig.from_config()</code> — exponential backoff with configurable initial/max delay, multiplier, full jitter, and an optional custom <code>retry_on</code> predicate. Defaults to <strong>3 retries</strong> (<code>max_retries=3</code>).</li>
+<li><code>compute_backoff_delay()</code> — pure backoff helper with an injectable RNG.</li>
+<li><code>run_with_retry()</code> — drives the subagent and, on a transient failure, <strong>replays the accumulated <code>message_history</code> so the subagent resumes instead of restarting from scratch</strong>. Uses <code>Agent.iter()</code> rather than <code>capture_run_messages()</code> to recover the failed run's messages, sidestepping <a href="https://github.com/pydantic/pydantic-ai/issues/1568">pydantic/pydantic-ai#1568</a> (nested <code>capture_run_messages</code> contexts do not work, and subagents always run nested inside the parent agent's run).</li>
+<li>Exported: <code>RetryConfig</code>, <code>run_with_retry</code>, <code>is_transient_error</code>, <code>compute_backoff_delay</code>.</li>
+<li><strong>Retry configuration on <code>SubAgentConfig</code></strong> — <code>max_retries</code> (default <code>3</code>), <code>retry_initial_delay</code>, <code>retry_max_delay</code>, <code>retry_backoff_multiplier</code>, <code>retry_jitter</code>, <code>retry_on</code>. Set <code>max_retries=0</code> to disable retrying (the legacy <code>agent.run()</code> opt-out path). Consumers like pydantic-deep get this for free through the re-exported <code>SubAgentConfig</code> with no code change.</li>
+<li><strong><code>TaskStatus.RETRYING</code></strong> and <strong><code>TaskHandle.retry_count</code></strong> — async-mode tasks surface in-progress retries via <code>check_task</code>; the transient error message is cleared from the handle once a retry eventually succeeds.</li>
+<li><strong>Usage-limits forwarding for delegated subagents</strong> (<a href="https://github.com/vstorm-co/subagents-pydantic-ai/pull/25">#25</a>) — <code>usage_limits</code> on <code>create_subagent_toolset()</code> and <code>SubAgentCapability</code>, accepting a static <code>pydantic_ai.UsageLimits</code> or a per-task <code>UsageLimitsFactory</code> <code>(RunContext, SubAgentConfig) -&gt; UsageLimits | None</code> resolved once per delegated task. Limits are forwarded to sync and async runs and are <strong>honoured on every retry attempt</strong>. New public <code>UsageLimitsFactory</code> type alias (exported).</li>
+</ul>
+<h3 id="changed_8">Changed<a class="headerlink" href="#changed_8" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong><code>_run_sync</code> / <code>_run_async</code> now execute the subagent through <code>run_with_retry</code>.</strong> With retries enabled (the default, <code>max_retries=3</code>) execution is driven via <code>Agent.iter()</code> from the first attempt, so a transient failure resumes with the full accumulated message history. Only genuinely transient errors are retried; non-transient errors fail immediately exactly as before. With <code>max_retries=0</code> it is <strong>exactly the legacy <code>agent.run()</code> path</strong> (opt-out, no behaviour change). <code>asyncio.CancelledError</code> is never caught by the retry loop, so soft/hard task cancellation is unaffected.</li>
+</ul>
+<h2 id="022-2026-04-20">[0.2.2] - 2026-04-20<a class="headerlink" href="#022-2026-04-20" title="Permanent link">&para;</a></h2>
+<h3 id="added_9">Added<a class="headerlink" href="#added_9" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong><code>ask_user</code> parameter on <code>create_subagent_toolset</code></strong> — <code>Callable[[str], Awaitable[str]]</code> invoked when a subagent calls <code>ask_parent</code> in sync mode. The callback is attached to the cloned subagent deps via <code>_subagent_state["ask_callback"]</code>, so <code>ask_parent</code> resolves through the same path as async mode. Required for sync-mode subagents with <code>can_ask_questions=True</code>. Exported as <code>AskUserCallback</code>.</li>
+</ul>
+<h3 id="fixed_12">Fixed<a class="headerlink" href="#fixed_12" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong><code>ask_parent</code> no longer silently fails in sync mode</strong> — previously, when a subagent with <code>can_ask_questions=True</code> ran in sync mode without an <code>ask_user</code> method on deps, <code>ask_parent</code> returned <code>"Error: Cannot ask parent - no communication channel configured"</code> — which the subagent <abbr title="Large Language Model">LLM</abbr> tended to launder into an invented answer. The error message now points to the fix and a first-class <code>ask_user</code> hook exists. (<a href="https://github.com/vstorm-co/subagents-pydantic-ai/issues/23">#23</a>)</li>
+</ul>
+<h3 id="changed_9">Changed<a class="headerlink" href="#changed_9" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Docs: corrected sync-mode question semantics</strong> — <code>docs/advanced/questions.md</code> previously claimed the parent could respond via <code>answer_subagent</code> in sync mode. That is architecturally impossible because the parent's run loop is blocked inside the subagent's <code>task</code> call. The docs now describe the <code>ask_user</code> callback flow.</li>
+</ul>
+<h2 id="021-2026-03-31">[0.2.1] - 2026-03-31<a class="headerlink" href="#021-2026-03-31" title="Permanent link">&para;</a></h2>
+<h3 id="changed_10">Changed<a class="headerlink" href="#changed_10" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Bump minimum <code>pydantic-ai-slim</code> to <code>&gt;=1.74.0</code> for compatibility with async <code>get_instructions</code> on toolsets</li>
+</ul>
+<h2 id="020-2026-03-30">[0.2.0] - 2026-03-30<a class="headerlink" href="#020-2026-03-30" title="Permanent link">&para;</a></h2>
+<h3 id="added_10">Added<a class="headerlink" href="#added_10" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Custom agent support</strong> via <code>agent</code> and <code>agent_factory</code> fields on <code>SubAgentConfig</code>:
+  <div class="language-python highlight"><span class="filename">Python</span><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">SubAgentConfig</span><span class="p">(</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">name</span><span class="o">=</span><span class="s2">"researcher"</span><span class="p">,</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">description</span><span class="o">=</span><span class="s2">"Deep research agent"</span><span class="p">,</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">instructions</span><span class="o">=</span><span class="s2">"..."</span><span class="p">,</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">agent</span><span class="o">=</span><span class="n">my_prebuilt_agent</span><span class="p">,</span>  <span class="c1"># pre-built agent, used as-is</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="p">)</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="c1"># OR</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="n">SubAgentConfig</span><span class="p">(</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">name</span><span class="o">=</span><span class="s2">"researcher"</span><span class="p">,</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">description</span><span class="o">=</span><span class="s2">"Deep research agent"</span><span class="p">,</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="n">instructions</span><span class="o">=</span><span class="s2">"..."</span><span class="p">,</span>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>    <span class="n">agent_factory</span><span class="o">=</span><span class="k">lambda</span> <span class="n">cfg</span><span class="p">:</span> <span class="n">create_deep_agent</span><span class="p">(</span>  <span class="c1"># factory creates agent from config</span>
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>        <span class="n">model</span><span class="o">=</span><span class="n">cfg</span><span class="p">[</span><span class="s2">"model"</span><span class="p">],</span> <span class="n">instructions</span><span class="o">=</span><span class="n">cfg</span><span class="p">[</span><span class="s2">"instructions"</span><span class="p">],</span>
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>    <span class="p">),</span>
+</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="p">)</span>
+</span></code></pre></div></li>
+<li>Priority chain in <code>_compile_subagent()</code>: <code>agent</code> &gt; <code>agent_factory</code> &gt; default <code>Agent()</code></li>
+<li>Enables frameworks like pydantic-deep to create full-featured agents as subagents</li>
+<li><strong><code>default_agent_factory</code></strong> parameter on <code>create_agent_factory_toolset()</code> — overrides default <code>Agent()</code> creation for dynamically spawned agents</li>
+<li><strong><code>SubAgentSpec</code></strong> — Pydantic model for declarative subagent configuration via YAML/JSON:
+  <div class="language-yaml highlight"><span class="filename">YAML</span><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nt">subagents</span><span class="p">:</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">researcher</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">    </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Research assistant</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">    </span><span class="nt">instructions</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">You research topics thoroughly.</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">    </span><span class="nt">model</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">openai:gpt-4.1-mini</span>
+</span></code></pre></div></li>
+<li><code>to_config()</code> / <code>from_config()</code> round-trip conversion</li>
+<li>
+<p>JSON/YAML serialization via Pydantic's <code>model_dump()</code> / <code>model_validate()</code></p>
+</li>
+<li>
+<p><strong>Token usage tracking</strong> (issue <a href="https://github.com/vstorm-co/pydantic-deepagents/issues/45">#45</a>):</p>
+</li>
+<li><code>TaskHandle.usage</code> — stores <code>RunUsage</code> from each subagent run</li>
+<li><code>check_task</code> displays token usage (input/output) for completed tasks</li>
+<li><code>get_total_usage()</code> on toolset — aggregates usage across all task handles</li>
+<li><code>TaskManager.list_handles()</code> — returns all task handles</li>
+<li><strong>Structured output serialization</strong> (issue <a href="https://github.com/vstorm-co/pydantic-deepagents/issues/46">#46</a>):</li>
+<li><code>_serialize_output()</code> uses <code>model_dump_json()</code> for Pydantic models and <code>json.dumps(asdict())</code> for dataclasses instead of <code>str()</code>, preserving JSON structure for the parent agent</li>
+</ul>
+<h3 id="changed_11">Changed<a class="headerlink" href="#changed_11" title="Permanent link">&para;</a></h3>
+<ul>
+<li><code>_compile_subagent()</code> now checks for custom <code>agent</code>/<code>agent_factory</code> before creating default <code>Agent()</code></li>
+<li>Subagent results are now proper JSON when <code>output_type</code> is a Pydantic model (previously flattened to Python repr string)</li>
+</ul>
+<h2 id="010-2026-03-26">[0.1.0] - 2026-03-26<a class="headerlink" href="#010-2026-03-26" title="Permanent link">&para;</a></h2>
+<h3 id="added_11">Added<a class="headerlink" href="#added_11" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong><code>SubAgentCapability</code></strong> — new pydantic-ai <a href="https://ai.pydantic.dev/capabilities/">capability</a> that bundles subagent tools + dynamic system prompt into a single plug-and-play unit. This is now the recommended way to add subagent delegation:
+  <div class="language-python highlight"><span class="filename">Python</span><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pydantic_ai</span><span class="w"> </span><span class="kn">import</span> <span class="n">Agent</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">subagents_pydantic_ai</span><span class="w"> </span><span class="kn">import</span> <span class="n">SubAgentCapability</span><span class="p">,</span> <span class="n">SubAgentConfig</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="n">agent</span> <span class="o">=</span> <span class="n">Agent</span><span class="p">(</span><span class="s2">"openai:gpt-4.1"</span><span class="p">,</span> <span class="n">capabilities</span><span class="o">=</span><span class="p">[</span><span class="n">SubAgentCapability</span><span class="p">(</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>    <span class="n">subagents</span><span class="o">=</span><span class="p">[</span><span class="n">SubAgentConfig</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">"researcher"</span><span class="p">,</span> <span class="n">description</span><span class="o">=</span><span class="s2">"Researches topics"</span><span class="p">,</span> <span class="n">instructions</span><span class="o">=</span><span class="s2">"..."</span><span class="p">)],</span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="p">)])</span>
+</span></code></pre></div></li>
+<li>Registers all tools automatically (<code>task</code>, <code>check_task</code>, <code>answer_subagent</code>, <code>list_active_tasks</code>, <code>soft_cancel_task</code>, <code>hard_cancel_task</code>)</li>
+<li>Injects dynamic system prompt listing available subagents</li>
+<li>Exposes <code>task_manager</code> property for observability</li>
+<li>Supports AgentSpec YAML serialization</li>
+</ul>
+<h3 id="changed_12">Changed<a class="headerlink" href="#changed_12" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Minimum pydantic-ai version bumped to <code>&gt;=1.71.0</code></strong> (capabilities <abbr title="Application Programming Interface">API</abbr> support)</li>
+<li><strong>Documentation rewritten for capabilities-first approach</strong> — README and examples now lead with <code>SubAgentCapability</code></li>
+</ul>
+<h2 id="008-2026-03-06">[0.0.8] - 2026-03-06<a class="headerlink" href="#008-2026-03-06" title="Permanent link">&para;</a></h2>
+<h3 id="fixed_13">Fixed<a class="headerlink" href="#fixed_13" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Accept <code>Model</code> objects in subagent configuration</strong> — <code>create_subagent_toolset()</code>, <code>_compile_subagent()</code>, <code>create_agent_factory_toolset()</code>, and <code>SubAgentConfig.model</code> now accept <code>str | Model</code> instead of only <code>str</code>. Previously, passing a <code>Model</code> object (e.g. <code>TestModel()</code>, <code>AnthropicModel()</code>) as <code>default_model</code> would be silently discarded by the caller. (<a href="https://github.com/vstorm-co/subagents-pydantic-ai/pull/15">#15</a>, by <a href="https://github.com/ret2libc">@ret2libc</a>)</li>
+<li><strong><code>ask_parent</code> tool broken in async mode</strong> — <code>ask_parent()</code> checked <code>ctx._subagent_state</code> but pydantic-ai never sets custom attributes on <code>RunContext</code>. State is now injected via <code>deps._subagent_state</code> in <code>_run_async()</code>. Additionally, <code>answer_subagent</code> used <code>message_bus.send()</code> instead of resolving the future that <code>ask_parent</code> awaits, so answers were never delivered. Replaced message bus <abbr title="Questions and Answers">Q&amp;A</abbr> with direct <code>asyncio.Future</code> coordination via <code>TaskManager</code>. (<a href="https://github.com/vstorm-co/subagents-pydantic-ai/issues/14">#14</a>)</li>
+</ul>
+<h2 id="007-2026-02-26">[0.0.7] - 2026-02-26<a class="headerlink" href="#007-2026-02-26" title="Permanent link">&para;</a></h2>
+<h3 id="added_12">Added<a class="headerlink" href="#added_12" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Custom tool descriptions</strong> — <code>create_subagent_toolset()</code> now accepts <code>descriptions: dict[str, str] | None</code> parameter to override any tool's built-in description</li>
+</ul>
+<h2 id="006-2026-02-24">[0.0.6] - 2026-02-24<a class="headerlink" href="#006-2026-02-24" title="Permanent link">&para;</a></h2>
+<h3 id="changed_13">Changed<a class="headerlink" href="#changed_13" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Expanded <code>TASK_TOOL_DESCRIPTION</code></strong> — From 8 lines to ~40 lines with "When to use" / "When NOT to use" sections, usage notes, and execution mode explanation. Follows the Claude Code / deepagents pattern of putting detailed guidance in tool descriptions rather than system prompt.</li>
+<li><strong>Added description constants for all secondary tools</strong> — <code>CHECK_TASK_DESCRIPTION</code>, <code>ANSWER_SUBAGENT_DESCRIPTION</code>, <code>LIST_ACTIVE_TASKS_DESCRIPTION</code>, <code>WAIT_TASKS_DESCRIPTION</code>, <code>SOFT_CANCEL_TASK_DESCRIPTION</code>, <code>HARD_CANCEL_TASK_DESCRIPTION</code>. All wired via <code>@toolset.tool(description=CONSTANT)</code> and exported from the package.</li>
+<li><strong>Slimmed <code>get_subagent_system_prompt()</code></strong> — Changed from multi-line format with <code>DUAL_MODE_SYSTEM_PROMPT</code> injection to a compact <code>- **name**: description</code> listing. Dual-mode explanation moved into <code>TASK_TOOL_DESCRIPTION</code>.</li>
+<li><strong>Dynamic <code>task</code> tool description</strong> — The task tool now builds its description by appending the available subagent list to <code>TASK_TOOL_DESCRIPTION</code> at toolset creation time, instead of using an f-string docstring.</li>
+</ul>
+<h2 id="005-2025-02-15">[0.0.5] - 2025-02-15<a class="headerlink" href="#005-2025-02-15" title="Permanent link">&para;</a></h2>
+<h3 id="added_13">Added<a class="headerlink" href="#added_13" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Dynamic registry lookup in <code>task()</code></strong>: <code>create_subagent_toolset()</code> now accepts an optional <code>registry</code> parameter. When a subagent type is not found in the static compiled list, the toolset falls back to the dynamic registry — enabling seamless delegation to agents created at runtime via <code>create_agent_factory_toolset()</code>.</li>
+<li><strong><code>context_files</code> field in <code>SubAgentConfig</code></strong>: Per-subagent context file paths, loaded by consumer libraries (e.g., pydantic-deep's <code>ContextToolset</code>).</li>
+<li><strong><code>extra</code> field in <code>SubAgentConfig</code></strong>: Generic extensibility dict for consumer libraries to attach metadata (e.g., <code>memory</code>, <code>team</code>, <code>cost_budget</code>) without subagents-pydantic-ai needing to know about them.</li>
+<li><strong>Documentation</strong>: Expanded guides for dynamic agents, execution modes, message bus, and subagent questions.</li>
+</ul>
+<h2 id="004-2025-02-12">[0.0.4] - 2025-02-12<a class="headerlink" href="#004-2025-02-12" title="Permanent link">&para;</a></h2>
+<h3 id="fixed_14">Fixed<a class="headerlink" href="#fixed_14" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Compatibility</strong>: Replaced all <code>agent._register_toolset()</code> calls with pydantic-ai public <abbr title="Application Programming Interface">API</abbr> (<a href="https://github.com/vstorm-co/subagents-pydantic-ai/issues/5">#5</a>, <a href="https://github.com/vstorm-co/subagents-pydantic-ai/pull/6">#6</a> by <a href="https://github.com/pedroallenrevez">@pedroallenrevez</a>)</li>
+<li><code>_compile_subagent()</code>: toolsets passed to <code>Agent()</code> constructor via <code>toolsets=</code> parameter</li>
+<li><code>task()</code> runtime toolsets: passed to <code>agent.run(toolsets=...)</code> instead of registering on agent instance</li>
+<li><code>create_agent_factory_toolset()</code>: toolsets from factory/capabilities passed to <code>Agent()</code> constructor</li>
+<li>Fixes <code>AttributeError: 'Agent' object has no attribute '_register_toolset'</code> with pydantic-ai &gt;= 1.38</li>
+</ul>
+<h3 id="changed_14">Changed<a class="headerlink" href="#changed_14" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Bumped minimum <code>pydantic-ai-slim</code> dependency from <code>&gt;=0.1.0</code> to <code>&gt;=1.38</code></li>
+</ul>
+<h2 id="003-2025-01-23">[0.0.3] - 2025-01-23<a class="headerlink" href="#003-2025-01-23" title="Permanent link">&para;</a></h2>
+<h3 id="fixed_15">Fixed<a class="headerlink" href="#fixed_15" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Documentation</strong>: Fixed incorrect import <code>from pydantic_ai import Toolset</code> → <code>from pydantic_ai.toolsets import FunctionToolset</code></li>
+<li><strong>Documentation</strong>: Fixed typo <code>BuitinTools</code> → <code>WebSearchTool</code> from <code>pydantic_ai.builtin_tools</code></li>
+</ul>
+<h2 id="002-2025-01-22">[0.0.2] - 2025-01-22<a class="headerlink" href="#002-2025-01-22" title="Permanent link">&para;</a></h2>
+<h3 id="added_14">Added<a class="headerlink" href="#added_14" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Complete documentation site with Material for MkDocs</li>
+<li>Core Concepts: subagents, toolset, types</li>
+<li>Advanced Features: execution modes, questions, cancellation, dynamic agents, message bus</li>
+<li>Examples: basic usage, sync/async, toolsets, questions, nesting, research team</li>
+<li><abbr title="Application Programming Interface">API</abbr> Reference with mkdocstrings</li>
+<li>CONTRIBUTING.md with development guidelines</li>
+<li>Use cases section in README</li>
+</ul>
+<h3 id="changed_15">Changed<a class="headerlink" href="#changed_15" title="Permanent link">&para;</a></h3>
+<ul>
+<li>README rewritten with clearer structure</li>
+<li>Updated tagline to "Multi-Agent Orchestration for Pydantic AI"</li>
+<li>Improved "Why Choose This Library?" section</li>
+</ul>
+<h2 id="001-2025-01-15">[0.0.1] - 2025-01-15<a class="headerlink" href="#001-2025-01-15" title="Permanent link">&para;</a></h2>
+<h3 id="added_15">Added<a class="headerlink" href="#added_15" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Initial release</li>
+<li><code>create_subagent_toolset()</code> for creating subagent delegation tools</li>
+<li><code>create_agent_factory_toolset()</code> for runtime agent creation</li>
+<li>Dual-mode execution (sync/async) with auto-mode selection</li>
+<li>Parent-child <abbr title="Questions and Answers">Q&amp;A</abbr> communication</li>
+<li>Soft and hard task cancellation</li>
+<li>Pluggable message bus architecture</li>
+<li><code>SubAgentConfig</code>, <code>TaskHandle</code>, <code>TaskStatus</code>, <code>TaskPriority</code> types</li>
+<li><code>DynamicAgentRegistry</code> for managing runtime-created agents</li>
+<li>100% test coverage</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../api/prompts/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Prompts">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Prompts
+              </div>
+            </div>
+          </a>
+        
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+</div>
+      
+        
+<div class="md-social">
+  
+    
+    
+    
+    
+    <a href="https://github.com/vstorm-co/subagents-pydantic-ai" target="_blank" rel="noopener" title="GitHub" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+    
+    
+    
+    
+    <a href="https://pypi.org/project/subagents-pydantic-ai/" target="_blank" rel="noopener" title="PyPI" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.8 200.5c-7.7-30.9-22.3-54.2-53.4-54.2h-40.1v47.4c0 36.8-31.2 67.8-66.8 67.8H172.7c-29.2 0-53.4 25-53.4 54.3v101.8c0 29 25.2 46 53.4 54.3 33.8 9.9 66.3 11.7 106.8 0 26.9-7.8 53.4-23.5 53.4-54.3v-40.7H226.2v-13.6h160.2c31.1 0 42.6-21.7 53.4-54.2 11.2-33.5 10.7-65.7 0-108.6M286.2 444.7a20.4 20.4 0 1 1 0-40.7 20.4 20.4 0 1 1 0 40.7M167.8 248.1h106.8c29.7 0 53.4-24.5 53.4-54.3V91.9c0-29-24.4-50.7-53.4-55.6-35.8-5.9-74.7-5.6-106.8.1-45.2 8-53.4 24.7-53.4 55.6v40.7h106.9v13.6h-147c-31.1 0-58.3 18.7-66.8 54.2-9.8 40.7-10.2 66.1 0 108.6 7.6 31.6 25.7 54.2 56.8 54.2H101v-48.8c0-35.3 30.5-66.4 66.8-66.4m-6.6-183.4a20.4 20.4 0 1 1 0 40.8 20.4 20.4 0 1 1 0-40.8"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+      <div class="md-progress" data-md-component="progress" role="progressbar"></div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.instant", "navigation.instant.prefetch", "navigation.instant.progress", "navigation.tracking", "navigation.path", "navigation.top", "navigation.footer", "navigation.indexes", "search.suggest", "search.highlight", "search.share", "content.tabs.link", "content.code.copy", "content.code.select", "content.code.annotate", "content.tooltips", "toc.follow", "announce.dismiss"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
