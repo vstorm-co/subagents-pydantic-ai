@@ -41,12 +41,80 @@ class TestSystemPrompts:
         assert "subagent_type" in TASK_TOOL_DESCRIPTION
 
     def test_delegate_tool_description(self):
-        """Test DELEGATE_TOOL_DESCRIPTION has expected content."""
+        """What it is for, when not to use it, and what comes back."""
         assert "ephemeral" in DELEGATE_TOOL_DESCRIPTION.lower()
         assert "create_agent" in DELEGATE_TOOL_DESCRIPTION
-        assert "instructions" in DELEGATE_TOOL_DESCRIPTION
-        assert "name" in DELEGATE_TOOL_DESCRIPTION
-        assert "hyphens" in DELEGATE_TOOL_DESCRIPTION
+        assert "When NOT to use" in DELEGATE_TOOL_DESCRIPTION
+        assert "task handle" in DELEGATE_TOOL_DESCRIPTION
+
+    def test_it_does_not_restate_the_parameters(self):
+        """They reach the model as schema descriptions, from the docstring.
+
+        A `## Parameters` list in the description is a second copy of the same
+        text in a place nothing checks against the signature, so it survives a
+        renamed argument.
+        """
+        assert "## Parameters" not in DELEGATE_TOOL_DESCRIPTION
+        assert "hyphens" not in DELEGATE_TOOL_DESCRIPTION
+
+
+class TestTheReturnShapeIsTheFrameworksOwn:
+    """One convention per tool list, and it is not this library's to invent."""
+
+    def test_it_matches_a_tool_pydantic_ai_renders_itself(self):
+        """Pinned against the framework, not a literal: it moves, this fails."""
+        from pydantic_ai.toolsets import FunctionToolset
+
+        from subagents_pydantic_ai.prompts import ToolText
+
+        native: FunctionToolset[None] = FunctionToolset()
+
+        @native.tool_plain
+        def demo() -> str:
+            """Do a thing.
+
+            A second paragraph of usage.
+
+            Returns:
+                One line per entry.
+            """
+            return ""  # pragma: no cover - never called, only described
+
+        rendered = ToolText(
+            summary="Do a thing.",
+            usage="A second paragraph of usage.",
+            returns="One line per entry.",
+        ).render()
+
+        assert rendered == native.tools["demo"].tool_def.description
+
+    def test_every_delegation_tool_says_what_it_returns(self):
+        from subagents_pydantic_ai import prompts
+
+        described = [
+            value
+            for name, value in vars(prompts).items()
+            if name.endswith("_DESCRIPTION") and name != "DEFAULT_GENERAL_PURPOSE_DESCRIPTION"
+        ]
+
+        assert described
+        assert all("<returns>" in text for text in described)
+
+    def test_a_text_with_nothing_to_report_is_left_as_prose(self):
+        """No `Returns:` section, no tags - which is what the framework does."""
+        from subagents_pydantic_ai.prompts import ToolText
+
+        assert ToolText(summary="Do a thing.", usage="Carefully.").render() == (
+            "Do a thing.\n\nCarefully."
+        )
+
+    def test_the_dynamic_half_lands_inside_the_summary(self):
+        """Appended past the closing tag, the tags bracket half the text."""
+        from subagents_pydantic_ai.prompts import TASK_TEXT
+
+        rendered = TASK_TEXT.render("Available subagent types:\n- reviewer: reads diffs")
+
+        assert "- reviewer: reads diffs</summary>" in rendered
 
 
 class TestGetSubagentSystemPrompt:

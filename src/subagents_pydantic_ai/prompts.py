@@ -6,6 +6,7 @@ and explain the task delegation system to the parent agent.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -50,53 +51,72 @@ DEFAULT_GENERAL_PURPOSE_DESCRIPTION = """A general-purpose agent for a wide vari
 Use this when no specialized subagent matches the task requirements.
 Capable of research, analysis, writing, and problem-solving."""
 
-DELEGATE_TOOL_DESCRIPTION = """\
-Create an ephemeral specialist and delegate a task to it in a single call.
 
-Use this instead of `create_agent` + `task` when you need a one-off specialist \
-for a single job. The specialist is not registered and cannot be reused by name.
+@dataclass(frozen=True)
+class ToolText:
+    """What the model reads about one delegation tool.
 
-## When to use
-- One-off tasks that need custom instructions or capabilities
-- Ad-hoc specialists you will not delegate to again
-- Quick delegation without polluting the agent registry
+    Held as parts rather than one string because they have different
+    destinations: `summary` and `usage` become the tool's description, and
+    `returns` is wrapped separately - which is how pydantic-ai renders a
+    docstring that has a `Returns:` section, and so how every tool built from a
+    docstring already reaches the model. Writing the return shape as a
+    `Returns:` line inside the prose, which these descriptions used to do, puts
+    two conventions in one tool list and tells the model nothing structural.
+    """
 
-## When NOT to use
-- Reusable specialists you will delegate to multiple times — use `task` with a \
-configured subagent or create a persistent agent first
-- Trivial tasks you can do faster yourself
+    summary: str
+    """One sentence: what the tool does."""
 
-## Parameters
-- **description**: The task prompt for the specialist to execute
-- **instructions**: The specialist's system prompt / role definition
-- **name**: Label for logs and async task handles (letters, numbers, hyphens). \
-Naming the specialist does not register it — it still cannot be reused via `task`
-- **model**: Optional model override
-- **capabilities**: Optional capability names to attach to the specialist
-- **mode**: `"sync"` (default), `"async"`, or `"auto"`
+    usage: str = ""
+    """When to use it, when not to, and what it will not do."""
 
-Returns:
-- In sync mode: The specialist's response as a string.
-- In async mode: A task handle with task_id for status checking.
-"""
+    returns: str = ""
+    """The shape of the answer, including what a failure looks like."""
 
-TASK_TOOL_DESCRIPTION = """\
-Delegate a task to a specialized subagent. The subagent runs independently \
-with its own context and tools, and returns a result when done.
+    def render(self, extra: str = "") -> str:
+        """The description handed to the model.
 
+        Args:
+            extra: Text appended to the prose before it is wrapped - the
+                subagent list and the model list, which are known only once the
+                toolset is built. It belongs inside the summary rather than
+                after it, or the tags no longer bracket what they claim to.
+        """
+        parts = [self.summary]
+        if self.usage:
+            parts.append(self.usage)
+        if extra:
+            parts.append(extra)
+        body = "\n\n".join(parts)
+        if not self.returns:
+            return body
+        return (
+            f"<summary>{body}</summary>\n"
+            f"<returns>\n<description>{self.returns}</description>\n</returns>"
+        )
+
+
+TASK_TEXT = ToolText(
+    summary=(
+        "Delegate a task to a specialized subagent. The subagent runs "
+        "independently with its own context and tools, and returns a result "
+        "when done."
+    ),
+    usage="""\
 ## When to use
 - Complex multi-step tasks that can run independently from your main work
 - Research or exploration tasks (e.g., "find all usages of function X", \
-"understand how module Y works") — delegate so you can continue other work
-- Multiple independent subtasks that can run in parallel — launch several \
+"understand how module Y works") - delegate so you can continue other work
+- Multiple independent subtasks that can run in parallel - launch several \
 subagents simultaneously for maximum efficiency
 - Tasks that require deep focus on a single area while you handle the big picture
 
 ## When NOT to use
 - Trivial tasks you can do faster yourself (single file read, simple grep)
-- Tasks that require your full conversation context — subagents don't share \
+- Tasks that require your full conversation context - subagents don't share \
 your message history
-- Tasks that need back-and-forth with the user — subagents work autonomously
+- Tasks that need back-and-forth with the user - subagents work autonomously
 
 ## Usage notes
 - **Be specific**: Subagents don't share your context. Include all necessary \
@@ -120,36 +140,116 @@ tasks or when you need the result immediately.
 - **"async"**: Returns a task handle immediately. Use for long-running tasks \
 where you can continue other work. Check results with `check_task()` or \
 wait with `wait_tasks()`.
-- **"auto"**: Automatically picks sync or async based on task complexity.
+- **"auto"**: Automatically picks sync or async based on task complexity.""",
+    returns=(
+        "In sync mode the subagent's answer in full, sometimes with a "
+        "`Chat Trace ID: <id>` line to continue that conversation with. In async "
+        "mode a task handle carrying the `task_id` that `check_task` and "
+        "`wait_tasks` take. A subagent type that does not exist comes back as "
+        "`Error: Unknown subagent '<name>'` and the list of the ones that do."
+    ),
+)
 
-Returns:
-- In sync mode: The subagent's response as a string.
-- In async mode: A task handle with task_id for status checking.
-"""
+DELEGATE_TEXT = ToolText(
+    summary=("Create an ephemeral specialist and delegate a task to it in a single call."),
+    usage="""\
+Use this instead of `create_agent` + `task` when you need a one-off specialist \
+for a single job. The specialist is not registered and cannot be reused by name.
 
-CHECK_TASK_DESCRIPTION = """\
-Check the status of a background (async) task and get its result if completed.
+## When to use
+- One-off tasks that need custom instructions or capabilities
+- Ad-hoc specialists you will not delegate to again
+- Quick delegation without polluting the agent registry
 
-Use this after launching async tasks to see if they're done. Returns the \
-task's current status, plus its result when completed, its error when failed, \
-its pending question when waiting for an answer, and why it stopped when \
-cancelled. The result is always returned in full, so call this when a \
-`wait_tasks` listing showed a truncated one."""
+## When NOT to use
+- Reusable specialists you will delegate to multiple times - use `task` with a \
+configured subagent or create a persistent agent first
+- Trivial tasks you can do faster yourself""",
+    returns=(
+        "In sync mode the specialist's answer in full; in async mode a task "
+        "handle carrying the `task_id` that `check_task` and `wait_tasks` take. "
+        "A deployment with no model configured and no `model` argument answers "
+        "with what it needs instead."
+    ),
+)
 
-ANSWER_SUBAGENT_DESCRIPTION = """\
-Answer a question from a background subagent that is waiting for clarification.
+CREATE_AGENT_TEXT = ToolText(
+    summary=(
+        "Create a reusable specialized agent at runtime. The agent is stored in "
+        "the registry and can be used repeatedly with the task tool."
+    ),
+    returns=(
+        "A confirmation naming the agent, the model it will run on and the "
+        "capabilities it was given. A name already in the registry comes back as "
+        "`Error: Agent '<name>' already exists` - pick another, or delegate to "
+        "the one that is there."
+    ),
+)
 
-When a task has status WAITING_FOR_ANSWER, the subagent needs information \
-from you before it can continue. Provide a clear, specific answer."""
+CHECK_TASK_TEXT = ToolText(
+    summary="Check the status of a background (async) task and get its result if completed.",
+    usage=(
+        "Use this after launching async tasks to see if they're done. Call it "
+        "whenever a `wait_tasks` listing showed a result cut short: the text is "
+        "stored in full and comes back in full here."
+    ),
+    returns=(
+        "The task's current status, and with it whichever applies: its result "
+        "when completed, its error when failed, the question it is waiting on "
+        "when it needs an answer, and why it stopped when cancelled. Never "
+        "truncated. An id that is not running here answers "
+        "`Error: Task '<id>' not found`."
+    ),
+)
 
-LIST_ACTIVE_TASKS_DESCRIPTION = """\
-List all currently active background tasks with their status.
+ANSWER_SUBAGENT_TEXT = ToolText(
+    summary="Answer a question from a background subagent that is waiting for clarification.",
+    usage=(
+        "When a task has status WAITING_FOR_ANSWER, the subagent needs "
+        "information from you before it can continue. Provide a clear, specific "
+        "answer."
+    ),
+    returns=(
+        "A confirmation that the answer reached the task. A task that is not "
+        "waiting for one says so with its current status instead, which means "
+        "the question was already answered or the subagent moved on."
+    ),
+)
 
-Use this to see what async tasks are running and their current state."""
+SEND_MESSAGE_TO_SUBAGENT_TEXT = ToolText(
+    summary=(
+        "Send a steering message to a running background (async) subagent without cancelling it."
+    ),
+    usage="""\
+Use this to redirect or refine a long-running task mid-flight when you learn \
+something new - e.g. "narrow the search to packages/sparta/, it isn't in \
+core/" or "stop after the first 5 matches". The subagent receives your message \
+as an extra user instruction on its next step and adapts, keeping all partial \
+progress (unlike cancel-and-respawn).
 
-WAIT_TASKS_DESCRIPTION = """\
-Wait for one or more background tasks to finish before continuing.
+This is unprompted parent -> child steering - distinct from `answer_subagent`, \
+which only replies to a question the subagent already asked. It applies to \
+async tasks only; the target must still be running.""",
+    returns=(
+        "A confirmation that the message was delivered, and that it applies on "
+        "the subagent's next step rather than immediately. A task that has "
+        "finished, or that is not running in the background, answers with its "
+        "status instead."
+    ),
+)
 
+LIST_ACTIVE_TASKS_TEXT = ToolText(
+    summary="List all currently active background tasks with their status.",
+    usage="Use this to see what async tasks are running and their current state.",
+    returns=(
+        "One line per task with its id and status, or `No active background "
+        "tasks.` when none are running - which is an answer, not a failure."
+    ),
+)
+
+WAIT_TASKS_TEXT = ToolText(
+    summary="Wait for one or more background tasks to finish before continuing.",
+    usage="""\
 A task is "finished" when it is completed, failed, or cancelled.
 
 ## Modes
@@ -160,7 +260,7 @@ result together before the next step (e.g. final synthesis across all \
 subagents).
 - **mode="any"**: return as soon as ONE task finishes. Use when the \
 subagents are independent and you can start acting on each finisher \
-immediately — this avoids stalling on the slowest task. After reacting to \
+immediately - this avoids stalling on the slowest task. After reacting to \
 the finisher, call `wait_tasks` again on the remaining ids (or use \
 `check_task`) to handle the rest.
 
@@ -169,42 +269,55 @@ the finisher, call `wait_tasks` again on the remaining ids (or use \
 When you've dispatched several async tasks in parallel and any individual \
 result is independently useful (e.g. routing decisions, progressive \
 synthesis, fan-out research). Reactive orchestration is almost always \
-faster than waiting on the slowest agent.
+faster than waiting on the slowest agent.""",
+    returns=(
+        "Every requested task with its current state, under a header showing "
+        "`mode`, `<finished>/<total> finished`, and how many are still running. "
+        "Unfinished tasks stay in the background - keep working, or wait on them "
+        "again later. A long result is cut here and ends with an explicit "
+        "truncation marker; that marker is a display limit on this listing and "
+        "never an incomplete subagent answer, so read the whole thing with "
+        "`check_task` rather than re-delegating the task."
+    ),
+)
 
-## Output
+SOFT_CANCEL_TASK_TEXT = ToolText(
+    summary="Request cooperative cancellation of a background task.",
+    usage=(
+        "The subagent is notified and can clean up before stopping. Use this "
+        "for graceful cancellation."
+    ),
+    returns=(
+        "A confirmation that cancellation was requested - the task stops at its "
+        "next opportunity rather than at once. A task that had already finished "
+        "says so, with the state it finished in."
+    ),
+)
 
-The result lists every requested task with its current state and a header \
-showing `mode`, `<finished>/<total> finished`, and how many are still \
-running. Unfinished tasks remain in the background — you can keep working \
-or wait on them again later.
+HARD_CANCEL_TASK_TEXT = ToolText(
+    summary="Immediately cancel a background task.",
+    usage=(
+        "The task is forcefully stopped. Use only when soft cancellation "
+        "doesn't work or immediate stopping is required."
+    ),
+    returns=(
+        "A confirmation that the task was cancelled. One that had already "
+        "finished says so, with the state it finished in; there was nothing to "
+        "stop."
+    ),
+)
 
-A long result may be cut here to save context, in which case it ends with an \
-explicit truncation marker. That marker is a display limit on this listing, \
-never an incomplete subagent answer: the full text is stored and \
-`check_task` returns it. Never re-delegate a task to "finish" a result that \
-carries the marker."""
 
-SEND_MESSAGE_TO_SUBAGENT_DESCRIPTION = """\
-Send a steering message to a running background (async) subagent without \
-cancelling it.
-
-Use this to redirect or refine a long-running task mid-flight when you learn \
-something new — e.g. "narrow the search to packages/sparta/, it isn't in \
-core/" or "stop after the first 5 matches". The subagent receives your message \
-as an extra user instruction on its next step and adapts, keeping all partial \
-progress (unlike cancel-and-respawn).
-
-This is unprompted parent -> child steering — distinct from `answer_subagent`, \
-which only replies to a question the subagent already asked. It applies to \
-async tasks only; the target must still be running."""
-
-SOFT_CANCEL_TASK_DESCRIPTION = """\
-Request cooperative cancellation of a background task. The subagent will be \
-notified and can clean up before stopping. Use this for graceful cancellation."""
-
-HARD_CANCEL_TASK_DESCRIPTION = """\
-Immediately cancel a background task. The task will be forcefully stopped. \
-Use only when soft cancellation doesn't work or immediate stopping is required."""
+TASK_TOOL_DESCRIPTION = TASK_TEXT.render()
+DELEGATE_TOOL_DESCRIPTION = DELEGATE_TEXT.render()
+CREATE_AGENT_DESCRIPTION = CREATE_AGENT_TEXT.render()
+CHECK_TASK_DESCRIPTION = CHECK_TASK_TEXT.render()
+ANSWER_SUBAGENT_DESCRIPTION = ANSWER_SUBAGENT_TEXT.render()
+SEND_MESSAGE_TO_SUBAGENT_DESCRIPTION = SEND_MESSAGE_TO_SUBAGENT_TEXT.render()
+LIST_ACTIVE_TASKS_DESCRIPTION = LIST_ACTIVE_TASKS_TEXT.render()
+WAIT_TASKS_DESCRIPTION = WAIT_TASKS_TEXT.render()
+SOFT_CANCEL_TASK_DESCRIPTION = SOFT_CANCEL_TASK_TEXT.render()
+HARD_CANCEL_TASK_DESCRIPTION = HARD_CANCEL_TASK_TEXT.render()
 
 
 def get_subagent_system_prompt(

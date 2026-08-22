@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.21] - 2026-08-22
+
+### Fixed
+
+- **A delegation tool's return description now reaches the model the way
+  pydantic-ai sends one.** Each description carried its own `Returns:` line in
+  the middle of the prose, where the framework wraps a docstring's `Returns:`
+  section in `<summary>` and `<returns>` tags - so a host registering these
+  beside tools of its own put two conventions in one tool list, and the
+  structural half of `task`, `wait_tasks` and `check_task` was a paragraph the
+  model had to notice rather than a field it was handed. Every tool text is a
+  `ToolText` now, rendered into the framework's shape, and the test pins that
+  shape against a tool pydantic-ai renders itself rather than against a string
+  literal.
+
+  Four of the ten said nothing about what came back at all. They do now, and it
+  is the part worth having: `check_task` returns a result in full where
+  `wait_tasks` may cut one and mark it, and re-delegating a task to "finish" a
+  marked result is the mistake that sentence exists to prevent.
+
+  The dynamic half - the subagent list on `task`, the model list on `delegate`
+  and `create_agent` - is rendered *inside* the summary. Appended after it, as a
+  first attempt did, the tags bracket half the text.
+
+- **`delegate` no longer restates its own parameters.** `## Parameters` listed
+  five arguments the docstring already describes, and a schema description is
+  where the model reads them; the copy in the prose was a second one that no
+  test compares against the signature.
+
 ## [0.2.20] - 2026-08-17
 
 ### Fixed

@@ -52,14 +52,15 @@ from subagents_pydantic_ai.message_bus import (
 from subagents_pydantic_ai.prompts import (
     ANSWER_SUBAGENT_DESCRIPTION,
     CHECK_TASK_DESCRIPTION,
+    CREATE_AGENT_TEXT,
     DEFAULT_GENERAL_PURPOSE_DESCRIPTION,
-    DELEGATE_TOOL_DESCRIPTION,
+    DELEGATE_TEXT,
     HARD_CANCEL_TASK_DESCRIPTION,
     LIST_ACTIVE_TASKS_DESCRIPTION,
     SEND_MESSAGE_TO_SUBAGENT_DESCRIPTION,
     SOFT_CANCEL_TASK_DESCRIPTION,
     SUBAGENT_SYSTEM_PROMPT,
-    TASK_TOOL_DESCRIPTION,
+    TASK_TEXT,
     WAIT_TASKS_DESCRIPTION,
 )
 from subagents_pydantic_ai.protocols import SubAgentDepsProtocol
@@ -654,9 +655,7 @@ class SubAgentToolset(FunctionToolset[Any]):
                 self.create_agent,
                 description=self._descriptions.get(
                     "create_agent",
-                    "Create a reusable specialized agent at runtime. The agent is stored "
-                    "in the registry and can be used repeatedly with the task tool.\n\n"
-                    f"{dynamic_agent_desc}",
+                    CREATE_AGENT_TEXT.render(dynamic_agent_desc),
                 ),
             )
 
@@ -668,8 +667,10 @@ class SubAgentToolset(FunctionToolset[Any]):
                 self.task,
                 description=self._descriptions.get(
                     "task",
-                    TASK_TOOL_DESCRIPTION.rstrip()
-                    + f"\n\nAvailable subagent types:\n{subagent_list}",
+                    # Inside the summary, not after it: the subagent list is
+                    # prose about when to call this, and appending it past the
+                    # closing tag would leave the tags bracketing half the text.
+                    TASK_TEXT.render(f"Available subagent types:\n{subagent_list}"),
                 ),
             )
 
@@ -678,7 +679,7 @@ class SubAgentToolset(FunctionToolset[Any]):
                 self.delegate,
                 description=self._descriptions.get(
                     "delegate",
-                    DELEGATE_TOOL_DESCRIPTION.rstrip() + f"\n\n{dynamic_agent_desc}",
+                    DELEGATE_TEXT.render(dynamic_agent_desc),
                 ),
             )
 
