@@ -120,6 +120,26 @@ If sync mode is used without an `ask_user` callback, `ask_parent` returns a
 configuration error to the subagent. Either provide the callback, drop
 `can_ask_questions` on that subagent, or switch to async mode.
 
+#### Which subagent asked
+
+The callback is handed the question and nothing else, which is enough to answer
+one and not enough to record one: a host that persists a question, or renders it
+in a transcript, has to be able to say *who* asked. The delegation's state is
+bound for the duration of the delegation, so it is bound inside the callback
+too, and it names the subagent:
+
+```python
+from subagents_pydantic_ai import current_subagent_state
+
+async def ask_user(question: str) -> str:
+    state = current_subagent_state()
+    asked_by = state.name if state is not None else None   # "analyst"
+    return await ui.ask(question, asked_by=asked_by)
+```
+
+`None` means no delegation is running in this context - the parent agent asked
+the question itself, rather than a child asking through it.
+
 [`SubAgentCapability`][subagents_pydantic_ai.capability.SubAgentCapability] takes
 the same argument and forwards it:
 
