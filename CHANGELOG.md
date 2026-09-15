@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **`SubAgentState.name`, so a parent can say which subagent asked.** The ask
+  channel carried the question and nothing else, so a host persisting or
+  rendering a question could record that one arrived and not who asked it - and
+  "a question arrived" is a different thing for a reader than "the researcher
+  asked". The name is on the delegation's state rather than in the callback's
+  signature, because the state is bound for the whole delegation and is
+  therefore bound inside `ask_callback` too: every existing caller keeps
+  working, and a host that wants the name reads it with
+  `current_subagent_state()`. Both are exported now.
+
 ## [0.2.21] - 2026-08-22
 
 ### Fixed

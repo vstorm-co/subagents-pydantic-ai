@@ -282,6 +282,7 @@ async def _run_sync(
         ask_timeout_seconds=ask_timeout_seconds,
         ask_callback=ask_user,
         questions=_question_budget(config),
+        name=config["name"],
     )
 
     try:
@@ -485,6 +486,7 @@ async def _run_async(
         task_manager=task_manager,
         task_id=task_id,
         questions=_question_budget(config),
+        name=config["name"],
     )
 
     async def run_task() -> None:

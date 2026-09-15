@@ -66,6 +66,13 @@ class SubAgentState:
         ask_timeout_seconds: How long `ask_parent` waits for the parent's answer
             before giving up and telling the subagent to proceed on its own.
         questions: This delegation's `max_questions` budget, when one is set.
+        name: Which subagent this delegation is running, as its config names it.
+            The ask channel carries the question and nothing else, so a parent
+            that persists or renders a question had no way to say who asked it -
+            and "a question arrived" is a different thing to read from "the
+            researcher asked". Read it with `current_subagent_state()`, which is
+            bound for the duration of the delegation and so is also bound inside
+            `ask_callback`.
     """
 
     ask_timeout_seconds: float
@@ -73,6 +80,7 @@ class SubAgentState:
     task_manager: TaskManager | None = None
     task_id: str | None = None
     questions: QuestionBudget | None = None
+    name: str | None = None
 
 
 _SUBAGENT_STATE: ContextVar[SubAgentState | None] = ContextVar(

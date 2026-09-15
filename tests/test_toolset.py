@@ -1134,9 +1134,49 @@ class TestRunSync:
         )
 
         assert captured == [
-            SubAgentState(ask_timeout_seconds=300.0, ask_callback=ask_user),
+            SubAgentState(ask_timeout_seconds=300.0, ask_callback=ask_user, name="test"),
         ]
         assert not hasattr(deps, "_subagent_state")
+
+    @pytest.mark.asyncio
+    async def test_the_bound_state_names_the_subagent_that_is_running(self):
+        """A parent that persists or renders a question needs to say who asked it.
+
+        `ask_parent` carries the question and nothing else, so "a question
+        arrived" was all a parent could record - a different thing to read from
+        "the researcher asked". The name goes on the state rather than into the
+        callback's signature because the state is bound for the whole delegation:
+        it is therefore bound inside `ask_callback` too, and every existing
+        caller keeps working.
+        """
+        mock_agent = FakeAgent(result=MockResult("done"))
+        seen: list[str | None] = []
+
+        async def ask_user(question: str) -> str:
+            return "yes"
+
+        def record() -> None:
+            state = current_subagent_state()
+            seen.append(state.name if state is not None else None)
+
+        mock_agent.on_enter = record
+        config = SubAgentConfig(
+            name="researcher",
+            description="Reads things",
+            instructions="Read",
+            can_ask_questions=True,
+        )
+
+        await _run_sync(
+            agent=mock_agent,
+            config=config,
+            description="do the thing",
+            deps=MockDeps(),
+            task_id="task-123",
+            ask_user=ask_user,
+        )
+
+        assert seen == ["researcher"]
 
     @pytest.mark.asyncio
     async def test_run_sync_state_does_not_leak_past_the_delegation(self):

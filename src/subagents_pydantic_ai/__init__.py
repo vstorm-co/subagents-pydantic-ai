@@ -33,6 +33,12 @@ agent = Agent("openai:gpt-4.1", toolsets=[toolset])
 ```
 """
 
+from subagents_pydantic_ai._state import (
+    SubAgentState as SubAgentState,
+)
+from subagents_pydantic_ai._state import (
+    current_subagent_state as current_subagent_state,
+)
 from subagents_pydantic_ai.capability import (
     SubAgentCapability as SubAgentCapability,
 )
@@ -213,6 +219,10 @@ __all__ = [
     "DEFAULT_CANCEL_GRACE_SECONDS",
     # Registry
     "DynamicAgentRegistry",
+    # The delegation a subagent is running inside, for a parent that has to say
+    # which one reached it: `ask_parent` carries the question and nothing else.
+    "SubAgentState",
+    "current_subagent_state",
     # Retry
     "RetryConfig",
     "run_with_retry",
