@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.23] - 2026-10-04
+
+### Changed
+
+- **Development dependencies and CI tooling updated.** The lockfile moves to
+  anyio 4.14.2, httpx2 and httpcore2 2.12.0, urllib3 2.8.0 and virtualenv
+  21.7.13, and the docs build to mkdocs-material 9.7.7, which carries a security
+  fix (#79, #86, #87, #91, #93, #94). CI and the publish workflow run on
+  `astral-sh/setup-uv` v10. The package's declared dependencies are unchanged,
+  so an install resolves the same way it did with 0.2.22.
+
 ## [0.2.22] - 2026-09-15
 
 ### Added
