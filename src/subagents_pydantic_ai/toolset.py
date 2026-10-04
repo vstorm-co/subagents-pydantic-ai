@@ -1363,32 +1363,27 @@ class SubAgentToolset(FunctionToolset[Any]):
                 `"any"` returns as soon as one task reaches a terminal
                 state (completed, failed, or cancelled), so the orchestrator
                 can react to the first finisher without stalling on the
-                slowest one.
+                slowest one. Either mode also returns once a task is waiting
+                for an answer, because it stays blocked until the parent replies.
         """
         # Scoped the same way the reporting below is. An unscoped await let one run
         # block for the full `timeout` on another run's task -- and the difference
         # between that and an id that does not exist is an existence oracle, since
         # both render as "not found".
-        pending = [
-            task
+        pending = {
+            tid: task
             for tid in task_ids
             if self._handle_for(ctx, tid) is not None
             and (task := self.task_manager.tasks.get(tid)) is not None
             and not task.done()
-        ]
+        }
         if pending:
-            # Both modes route through `asyncio.wait`. Unlike
-            # `asyncio.wait_for(asyncio.gather(...))`, `asyncio.wait` does *not*
-            # cascade cancellation to its constituent tasks -- neither on timeout
-            # nor when its caller is cancelled (e.g. pydantic-ai's `_call_tools`
-            # sibling-cancel hitting this tool call). Workers keep owning their
-            # lifecycle, which is what an orchestrator expects.
-            return_when = asyncio.FIRST_COMPLETED if mode == "any" else asyncio.ALL_COMPLETED
-            await asyncio.wait(pending, timeout=timeout, return_when=return_when)
+            await _wait_for_tasks(self.task_manager, pending, timeout, mode)
 
         lines: list[str] = []
         finished_count = 0
         missing_count = 0
+        waiting_count = 0
         for tid in task_ids:
             handle = self._handle_for(ctx, tid)
             if handle is None:
@@ -1410,6 +1405,12 @@ class SubAgentToolset(FunctionToolset[Any]):
                     f"- {tid} ({handle.subagent_name}): "
                     f"{handle.status.value.upper()} - {error_for_model(handle)}"
                 )
+            elif handle.status == TaskStatus.WAITING_FOR_ANSWER:
+                waiting_count += 1
+                lines.append(
+                    f"- {tid} ({handle.subagent_name}): {handle.status} - "
+                    f"Question: {handle.pending_question}"
+                )
             else:
                 lines.append(f"- {tid} ({handle.subagent_name}): {handle.status}")
 
@@ -1419,13 +1420,21 @@ class SubAgentToolset(FunctionToolset[Any]):
         # count told the orchestrator, in the same message that said "not found",
         # that the task was still going -- so it kept polling an id that never
         # resolves.
-        running = total - finished_count - missing_count
+        running = total - finished_count - missing_count - waiting_count
         if running > 0:
             header_parts.append(f"{running} still running")
+        if waiting_count > 0:
+            header_parts.append(f"{waiting_count} waiting for an answer")
         if missing_count > 0:
             header_parts.append(f"{missing_count} not found")
 
-        return f"Task results ({', '.join(header_parts)}):\n" + "\n\n".join(lines)
+        listing = f"Task results ({', '.join(header_parts)}):\n" + "\n\n".join(lines)
+        if waiting_count > 0:
+            listing += (
+                "\n\nA subagent waiting for an answer stays blocked until you reply: "
+                "answer it with `answer_subagent`, then call `wait_tasks` again."
+            )
+        return listing
 
     async def soft_cancel_task(
         self,
@@ -1462,6 +1471,38 @@ class SubAgentToolset(FunctionToolset[Any]):
         if await self.task_manager.hard_cancel(task_id):
             return f"Task '{task_id}' has been cancelled"
         return _already_finished(task_id, handle)
+
+
+async def _wait_for_tasks(
+    task_manager: TaskManager,
+    pending: dict[str, asyncio.Task[None]],
+    timeout: float,
+    mode: Literal["all", "any"],
+) -> None:
+    """Block until `mode` is satisfied, `timeout` passes, or a task asks a question.
+
+    A task blocked in `ask_parent` is not done, so a wait on completion alone kept
+    the parent from ever seeing the question: both sides sat out their timeouts
+    and the subagent was told its parent did not respond (#92).
+
+    `asyncio.wait` rather than `asyncio.wait_for(asyncio.gather(...))`: it does not
+    cascade cancellation to the tasks it waits on, neither on timeout nor when its
+    caller is cancelled (e.g. pydantic-ai's `_call_tools` sibling-cancel hitting
+    this tool call). Workers keep owning their lifecycle.
+    """
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + timeout
+    running: set[asyncio.Future[None]] = set(pending.values())
+    with task_manager.watch_questions(pending) as asked:
+        while running and not asked.done():
+            done, _ = await asyncio.wait(
+                {*running, asked},
+                timeout=deadline - loop.time(),
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+            if not done or mode == "any":
+                return
+            running -= done
 
 
 def create_subagent_toolset(

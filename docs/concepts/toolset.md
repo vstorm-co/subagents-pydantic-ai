@@ -326,6 +326,25 @@ The output includes a header like
 orchestrator can see which tasks are still in flight and decide whether
 to keep waiting or do other work first.
 
+#### A question ends the wait
+
+A background subagent that calls `ask_parent` stays blocked until the parent
+answers, so neither mode keeps waiting on it. `wait_tasks` returns as soon as a
+task it waits on is waiting for an answer, and lists the question:
+
+```text
+Task results (mode=all, 0/2 finished, 1 still running, 1 waiting for an answer):
+- abc123 (researcher): running
+
+- def456 (analyst): waiting_for_answer - Question: Gross or net revenue?
+
+A subagent waiting for an answer stays blocked until you reply: answer it with `answer_subagent`, then call `wait_tasks` again.
+```
+
+The same happens when the question was already pending before the call. A task
+whose question is never answered gets `Error: Parent did not respond in time` from
+`ask_parent` after `ask_timeout_seconds`.
+
 #### Long results are truncated, and say so
 
 A fan-out of verbose subagents can flood the orchestrator's context, so

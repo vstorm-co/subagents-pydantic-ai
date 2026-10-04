@@ -252,6 +252,10 @@ WAIT_TASKS_TEXT = ToolText(
     usage="""\
 A task is "finished" when it is completed, failed, or cancelled.
 
+Both modes also return as soon as a task you are waiting on asks you a \
+question (status `waiting_for_answer`): it stays blocked until you reply. \
+Answer it with `answer_subagent`, then call `wait_tasks` again.
+
 ## Modes
 
 - **mode="all"** (default): block until every task in `task_ids` is \
@@ -272,7 +276,8 @@ synthesis, fan-out research). Reactive orchestration is almost always \
 faster than waiting on the slowest agent.""",
     returns=(
         "Every requested task with its current state, under a header showing "
-        "`mode`, `<finished>/<total> finished`, and how many are still running. "
+        "`mode`, `<finished>/<total> finished`, and how many are still running "
+        "or waiting for an answer. A waiting task is listed with its question. "
         "Unfinished tasks stay in the background - keep working, or wait on them "
         "again later. A long result is cut here and ends with an explicit "
         "truncation marker; that marker is a display limit on this listing and "

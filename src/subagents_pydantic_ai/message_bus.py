@@ -16,7 +16,7 @@ import asyncio
 import contextlib
 import logging
 import uuid
-from collections.abc import Awaitable, Callable, Coroutine
+from collections.abc import Awaitable, Callable, Collection, Coroutine, Iterator
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -329,6 +329,7 @@ class TaskManager:
     cancel_grace_seconds: float = DEFAULT_CANCEL_GRACE_SECONDS
     _cancel_events: dict[str, asyncio.Event] = field(default_factory=dict)
     _answer_futures: dict[str, asyncio.Future[str]] = field(default_factory=dict)
+    _question_watches: dict[asyncio.Future[None], frozenset[str]] = field(default_factory=dict)
     _strong_refs: set[asyncio.Task[None]] = field(default_factory=set)
 
     def create_task(
@@ -392,6 +393,37 @@ class TaskManager:
             future: The future to resolve when the answer arrives.
         """
         self._answer_futures[task_id] = future
+        for asked, task_ids in self._question_watches.items():
+            if task_id in task_ids and not asked.done():
+                asked.set_result(None)
+
+    @contextlib.contextmanager
+    def watch_questions(self, task_ids: Collection[str]) -> Iterator[asyncio.Future[None]]:
+        """Yield a future that resolves once one of `task_ids` is waiting for an answer.
+
+        A task blocked in `ask_parent` is not done, so a parent waiting only on
+        task completion sits out the whole ask timeout without ever seeing the
+        question. Waiting on this future as well lets it stop and answer. The
+        future is already resolved when a question is pending on entry.
+
+        Args:
+            task_ids: The tasks whose questions should resolve the future.
+        """
+        ids = frozenset(task_ids)
+        asked: asyncio.Future[None] = asyncio.get_running_loop().create_future()
+        if any(self._question_pending(task_id) for task_id in ids):
+            asked.set_result(None)
+        self._question_watches[asked] = ids
+        try:
+            yield asked
+        finally:
+            del self._question_watches[asked]
+
+    def _question_pending(self, task_id: str) -> bool:
+        # A resolved future stays registered until `ask_parent` resumes and clears
+        # it, and that question has already been answered.
+        future = self._answer_futures.get(task_id)
+        return future is not None and not future.done()
 
     def get_answer_future(self, task_id: str) -> asyncio.Future[str] | None:
         """Get the pending answer future for a task.

@@ -235,7 +235,7 @@ The `answer_subagent` tool is how a parent agent responds to questions from suba
 
 1. A subagent calls `ask_parent(question)` during task execution
 2. For async tasks, the task status changes to `WAITING_FOR_ANSWER` and `handle.pending_question` is set to the question text
-3. The parent discovers the question by calling `check_task(task_id)` (async) or sees it inline (sync)
+3. The parent discovers the question from `check_task(task_id)` or a `wait_tasks` listing (async), or sees it inline (sync). `wait_tasks` returns as soon as an awaited task asks, so a parent waiting on it is not left waiting out the timeout
 4. The parent calls `answer_subagent(task_id, answer)` to provide the response
 5. The tool creates an `ANSWER` message on the message bus and resets the task status to `RUNNING`
 6. The subagent receives the answer and continues execution
