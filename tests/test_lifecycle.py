@@ -23,7 +23,14 @@ from pydantic_ai.exceptions import (
     UsageLimitExceeded,
     UserError,
 )
-from pydantic_ai.messages import ToolCallPart
+from pydantic_ai.messages import (
+    ModelMessage,
+    ModelResponse,
+    TextPart,
+    ToolCallPart,
+    ToolReturnPart,
+)
+from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.toolsets import FunctionToolset
 
@@ -42,6 +49,7 @@ from subagents_pydantic_ai import (
 from subagents_pydantic_ai._chat_trace import ChatTraceStore
 from subagents_pydantic_ai._execution import _question_budget, _run_async, _run_sync
 from subagents_pydantic_ai._state import QuestionBudget, SubAgentState, bind_subagent_state
+from subagents_pydantic_ai.toolset import _wait_for_tasks
 from subagents_pydantic_ai.types import utcnow
 
 _UNSET = object()
@@ -1362,6 +1370,168 @@ class TestWaitTasksIsolation:
 # --------------------------------------------------------------------------- #
 # Question contracts
 # --------------------------------------------------------------------------- #
+
+
+def _asking_model(question: str) -> FunctionModel:
+    """Ask the parent `question` on the first turn, then report the answer it got."""
+
+    def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+        replies = [p.content for p in messages[-1].parts if isinstance(p, ToolReturnPart)]
+        if replies:
+            return ModelResponse(parts=[TextPart(f"Answer received: {replies[0]}")])
+        return ModelResponse(parts=[ToolCallPart("ask_parent", {"question": question})])
+
+    return FunctionModel(respond)
+
+
+def _blocking_model(block: asyncio.Event) -> FunctionModel:
+    """Hold the first model request until `block` is set."""
+
+    async def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+        await block.wait()
+        return ModelResponse(parts=[TextPart("done")])
+
+    return FunctionModel(respond)
+
+
+class TestWaitTasksSurfacesQuestions:
+    """`wait_tasks` slept through a question from a task it was waiting on (#92).
+
+    A task blocked in `ask_parent` is not done, and `wait_tasks` waited only for
+    tasks to be done. The parent stayed inside `wait_tasks` until its timeout, the
+    subagent's question timed out first with "Parent did not respond in time", and
+    the listing that finally came back named the status but not the question. The
+    existing tests drove `wait_tasks` with tasks that finish or block, never with
+    one that asks.
+    """
+
+    QUESTION = "Which region should I deploy to?"
+
+    def _toolset(self, block: asyncio.Event | None = None) -> Any:
+        subagents = [_config("asker", model=_asking_model(self.QUESTION))]
+        if block is not None:
+            subagents.append(_config("worker", model=_blocking_model(block)))
+        return create_subagent_toolset(
+            subagents=subagents,
+            include_general_purpose=False,
+            default_model=TestModel(),
+        )
+
+    async def _start(self, toolset: Any, subagent: str) -> str:
+        handle = await toolset.tools["task"].function(Ctx(), "work", subagent, "async")
+        return str(handle.split("Task ID: ")[1].split("\n")[0])
+
+    @pytest.mark.parametrize("mode", ["all", "any"])
+    async def test_returns_with_the_question_and_resumes_after_the_answer(self, mode: str) -> None:
+        toolset = self._toolset()
+        tid = await self._start(toolset, "asker")
+        loop = asyncio.get_running_loop()
+
+        started = loop.time()
+        result = await toolset.tools["wait_tasks"].function(Ctx(), [tid], 5.0, mode)
+        elapsed = loop.time() - started
+
+        # Timing is the defect: the old code returned only when the timeout ran out.
+        assert elapsed < 1.0
+        assert result.startswith(
+            f"Task results (mode={mode}, 0/1 finished, 1 waiting for an answer):\n"
+        )
+        assert f"- {tid} (asker): waiting_for_answer - Question: {self.QUESTION}" in result
+        assert "answer it with `answer_subagent`, then call `wait_tasks` again" in result
+        assert "still running" not in result
+        assert "TaskStatus." not in result
+
+        answered = await toolset.tools["answer_subagent"].function(Ctx(), tid, "eu-west-1")
+        assert answered == f"Answer sent to task '{tid}'"
+
+        result = await toolset.tools["wait_tasks"].function(Ctx(), [tid], 5.0, mode)
+
+        assert f"Task results (mode={mode}, 1/1 finished):" in result
+        assert "Answer received: eu-west-1" in result
+
+    async def test_returns_at_once_for_a_question_asked_before_the_wait(self) -> None:
+        toolset = self._toolset()
+        tid = await self._start(toolset, "asker")
+        handle = toolset.task_manager.get_handle(tid)
+        while handle.status != TaskStatus.WAITING_FOR_ANSWER:
+            await asyncio.sleep(0)
+
+        result = await asyncio.wait_for(
+            toolset.tools["wait_tasks"].function(Ctx(), [tid], 300.0), timeout=1.0
+        )
+
+        assert f"Question: {self.QUESTION}" in result
+
+        await toolset.tools["answer_subagent"].function(Ctx(), tid, "eu-west-1")
+        await asyncio.gather(*toolset.task_manager.tasks.values(), return_exceptions=True)
+
+    async def test_mode_all_stops_on_a_question_while_another_task_runs(self) -> None:
+        """Waiting out the slow task first would park the question for its duration."""
+        block = asyncio.Event()
+        toolset = self._toolset(block)
+        slow = await self._start(toolset, "worker")
+        asker = await self._start(toolset, "asker")
+
+        result = await asyncio.wait_for(
+            toolset.tools["wait_tasks"].function(Ctx(), [slow, asker], 300.0), timeout=1.0
+        )
+
+        assert result.startswith(
+            "Task results (mode=all, 0/2 finished, 1 still running, 1 waiting for an answer):"
+        )
+        assert f"- {slow} (worker): running" in result
+        assert f"- {asker} (asker): waiting_for_answer - Question: {self.QUESTION}" in result
+
+        block.set()
+        await toolset.tools["answer_subagent"].function(Ctx(), asker, "eu-west-1")
+        await asyncio.gather(*toolset.task_manager.tasks.values(), return_exceptions=True)
+
+    async def test_mode_all_keeps_waiting_after_one_task_finishes(self) -> None:
+        """Returning early on a question must not make `all` return on a finisher."""
+        manager = TaskManager()
+        release = asyncio.Event()
+
+        async def quick() -> None:
+            await asyncio.sleep(0)
+
+        async def slow() -> None:
+            await release.wait()
+
+        for task_id, coro in (("quick", quick()), ("slow", slow())):
+            manager.create_task(
+                task_id, coro, TaskHandle(task_id=task_id, subagent_name="w", description="d")
+            )
+        waiter = asyncio.ensure_future(
+            _wait_for_tasks(manager, dict(manager.tasks), timeout=5.0, mode="all")
+        )
+        await asyncio.wait_for(manager.tasks["quick"], timeout=1.0)
+        await asyncio.sleep(0)
+
+        assert not waiter.done()
+
+        release.set()
+        await asyncio.wait_for(waiter, timeout=1.0)
+
+    async def test_a_watch_ignores_questions_from_other_tasks_and_after_it_ends(self) -> None:
+        manager = TaskManager()
+        loop = asyncio.get_running_loop()
+
+        with manager.watch_questions(["mine"]) as asked:
+            manager.set_answer_future("other", loop.create_future())
+            assert not asked.done()
+
+        manager.set_answer_future("mine", loop.create_future())
+        assert not asked.done()
+
+    async def test_an_answered_question_does_not_resolve_a_new_watch(self) -> None:
+        """The answer future outlives the answer until `ask_parent` resumes."""
+        manager = TaskManager()
+        answered: asyncio.Future[str] = asyncio.get_running_loop().create_future()
+        manager.set_answer_future("t1", answered)
+        manager.resolve_answer("t1", "yes")
+
+        with manager.watch_questions(["t1"]) as asked:
+            assert not asked.done()
 
 
 class TestCanAskQuestions:

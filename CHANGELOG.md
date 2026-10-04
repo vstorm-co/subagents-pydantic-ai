@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **`wait_tasks` returns when a task it waits on asks a question** (#92). A
+  background subagent in `ask_parent` is blocked, not finished, and `wait_tasks`
+  waited only for tasks to finish - in both modes, since the early return in
+  `mode="any"` fired on a terminal status alone. A parent that delegated and then
+  waited, the usual pattern, sat out its own timeout while the subagent's
+  question timed out first with "Parent did not respond in time". Both modes now
+  return as soon as an awaited task is waiting for an answer, including one that
+  was already waiting when the call started. The listing names the question
+  (`- <id> (<name>): waiting_for_answer - Question: <text>`), counts waiting
+  tasks separately in the header rather than as still running, and tells the
+  model to answer with `answer_subagent` and wait again. `TaskManager` gains
+  `watch_questions`, the signal `wait_tasks` waits on.
+
 ## [0.2.23] - 2026-10-04
 
 ### Changed
