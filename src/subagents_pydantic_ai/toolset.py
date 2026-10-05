@@ -111,6 +111,22 @@ _DEFAULT_TOOL_DESCRIPTIONS: dict[str, str] = {
 """Model-facing description per background-task tool, overridable via `descriptions`."""
 
 
+def _parent_workspace(ctx: RunContext[Any]) -> Any | None:
+    """The parent run's workspace, for the subagent to work in, when it has one.
+
+    A delegate shares its parent's deps, and with them every file the parent
+    made; a workspace is where those files live now, so it is shared the same
+    way. Without it a delegate whose agent carries a workspace capability of its
+    own would start in a fresh, empty environment and the parent's files would
+    be out of its reach. `RunContext.workspace` arrived in pydantic-ai 2.52, and
+    a run with nothing attached has nothing to share.
+    """
+    workspace = getattr(ctx, "workspace", None)
+    if workspace is None or not workspace.attached:
+        return None
+    return workspace
+
+
 def _format_chat_trace_result(output: str, chat_trace_id: str) -> str:
     """Append a compact chat trace identifier to a subagent result."""
     return f"{output}\n\nChat Trace ID: {chat_trace_id}"
@@ -990,6 +1006,7 @@ class SubAgentToolset(FunctionToolset[Any]):
                     ask_timeout_seconds=self._ask_timeout_seconds,
                     contain_errors=config.get("contain_errors", self._contain_errors),
                     event_stream_handler=resolved_event_stream_handler,
+                    workspace=_parent_workspace(ctx),
                 )
             finally:
                 self._chat_traces.release(trace_key)
@@ -1021,6 +1038,7 @@ class SubAgentToolset(FunctionToolset[Any]):
                 ask_timeout_seconds=self._ask_timeout_seconds,
                 parent_run_id=ctx.run_id,
                 event_stream_handler=resolved_event_stream_handler,
+                workspace=_parent_workspace(ctx),
             )
         except BaseException:
             # `_run_async` failed before the background task took ownership.

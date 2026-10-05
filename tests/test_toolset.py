@@ -75,6 +75,7 @@ class MockRunContext:
     deps: MockDeps
     _subagent_state: dict[str, Any] | None = None
     run_id: str | None = None
+    workspace: Any = None
 
 
 class MockModelResponse:
@@ -1569,6 +1570,52 @@ class TestToolsetIntegration:
             await task_tool.function(ctx, "do something", "helper", "sync")
 
             assert mock_run_sync.call_args.kwargs["ask_user"] is ask_user
+
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    @pytest.mark.parametrize("attached", [True, False])
+    @pytest.mark.asyncio
+    async def test_a_subagent_works_in_the_parents_workspace(self, mode: str, attached: bool):
+        """Without it a delegate with a workspace of its own starts in an empty one."""
+        config = SubAgentConfig(name="helper", description="Helps", instructions="Help")
+        runner = "_run_sync" if mode == "sync" else "_run_async"
+        workspace = SimpleNamespace(attached=attached)
+
+        with (
+            patch(
+                "subagents_pydantic_ai.toolset._compile_subagent",
+                return_value=_make_mock_compiled_subagent(config),
+            ),
+            patch(
+                f"subagents_pydantic_ai.toolset.{runner}", new_callable=AsyncMock, return_value="ok"
+            ) as run,
+        ):
+            toolset = create_subagent_toolset(subagents=[config], include_general_purpose=False)
+            ctx = MockRunContext(deps=MockDeps(), workspace=workspace)
+            await toolset.tools["task"].function(ctx, "do something", "helper", mode)
+
+        assert run.call_args.kwargs["workspace"] is (workspace if attached else None)
+
+    def test_the_workspace_reaches_the_subagents_run(self):
+        from subagents_pydantic_ai._execution import _build_run_kwargs
+
+        workspace = object()
+        shared = _build_run_kwargs(
+            "deps",
+            extra_toolsets=None,
+            usage_limits=None,
+            message_history=None,
+            conversation_id=None,
+            workspace=workspace,
+        )
+        own = _build_run_kwargs(
+            "deps",
+            extra_toolsets=None,
+            usage_limits=None,
+            message_history=None,
+            conversation_id=None,
+        )
+
+        assert shared["workspace"] is workspace and "workspace" not in own
 
     @pytest.mark.asyncio
     async def test_task_async_execution(self):
