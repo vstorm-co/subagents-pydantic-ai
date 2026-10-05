@@ -131,7 +131,7 @@ remove_agent(name="rust-expert")
 
 ### Integration with pydantic-deep
 
-When using subagents with [`pydantic-deep`](https://github.com/vstorm-co/pydantic-deep), pass the registry to both the subagent toolset and the agent factory toolset so they share state:
+When using subagents with [`pydantic-deep`](https://github.com/vstorm-co/pydantic-deepagents), pass the registry to both the subagent toolset and the agent factory toolset so they share state:
 
 ```python
 from pydantic_ai import Agent

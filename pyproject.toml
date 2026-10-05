@@ -37,7 +37,7 @@ dependencies = [
 
 [project.urls]
 Homepage = "https://github.com/vstorm-co/subagents-pydantic-ai"
-Documentation = "https://github.com/vstorm-co/subagents-pydantic-ai#readme"
+Documentation = "https://vstorm-co.github.io/subagents-pydantic-ai/"
 Repository = "https://github.com/vstorm-co/subagents-pydantic-ai"
 Issues = "https://github.com/vstorm-co/subagents-pydantic-ai/issues"
 Changelog = "https://github.com/vstorm-co/subagents-pydantic-ai/releases"
