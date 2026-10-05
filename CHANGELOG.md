@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **A subagent works in its parent's workspace.** Pydantic AI 2.52 gives a run
+  one environment, `ctx.workspace`, and a delegate shares its parent's deps but
+  was started without it: one whose agent carries a workspace capability of its
+  own began in a fresh, empty environment, and one without could not reach a
+  file at all. `task` now passes the parent run's workspace to the subagent's run
+  (`workspace=`) in both sync and async mode, whenever the parent has one
+  attached. On a pydantic-ai release before 2.52, and in a run with no workspace,
+  nothing changes.
+
 ## [0.2.24] - 2026-10-04
 
 ### Fixed

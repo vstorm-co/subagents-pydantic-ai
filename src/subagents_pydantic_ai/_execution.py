@@ -189,8 +189,11 @@ def _build_run_kwargs(
     usage_limits: UsageLimits | None,
     message_history: list[Any] | None,
     conversation_id: str | None,
+    workspace: Any | None = None,
 ) -> dict[str, Any]:
     run_kwargs: dict[str, Any] = {"deps": deps}
+    if workspace is not None:
+        run_kwargs["workspace"] = workspace
     if extra_toolsets:
         run_kwargs["toolsets"] = extra_toolsets
     if usage_limits is not None:
@@ -236,6 +239,7 @@ async def _run_sync(
     ask_timeout_seconds: float = DEFAULT_ASK_TIMEOUT_SECONDS,
     contain_errors: bool = True,
     event_stream_handler: EventStreamHandler[Any] | None = None,
+    workspace: Any | None = None,
 ) -> str:
     """Run a subagent task synchronously, blocking until it finishes.
 
@@ -259,6 +263,7 @@ async def _run_sync(
             Signals in `_ALWAYS_PROPAGATE` ignore this.
         event_stream_handler: Streams this delegation's events. Used only when
             the agent carries no handler of its own.
+        workspace: The parent run's workspace, which the subagent works in.
 
     Returns:
         The subagent's output, or the configured `on_failure` message.
@@ -277,6 +282,7 @@ async def _run_sync(
         usage_limits=usage_limits,
         message_history=message_history,
         conversation_id=handle.chat_trace_id if handle is not None else None,
+        workspace=workspace,
     )
     state = SubAgentState(
         ask_timeout_seconds=ask_timeout_seconds,
@@ -431,6 +437,7 @@ async def _run_async(
     ask_timeout_seconds: float = DEFAULT_ASK_TIMEOUT_SECONDS,
     parent_run_id: str | None = None,
     event_stream_handler: EventStreamHandler[Any] | None = None,
+    workspace: Any | None = None,
 ) -> str:
     """Start a subagent task in the background and return its handle text.
 
@@ -453,6 +460,7 @@ async def _run_async(
         parent_run_id: `run_id` of the parent run, so the task can be scoped to it.
         event_stream_handler: Streams this delegation's events. Used only when
             the agent carries no handler of its own.
+        workspace: The parent run's workspace, which the subagent works in.
 
     Returns:
         Text telling the parent the task id and how to check on it.
@@ -480,6 +488,7 @@ async def _run_async(
         usage_limits=usage_limits,
         message_history=message_history,
         conversation_id=chat_trace_id,
+        workspace=workspace,
     )
     state = SubAgentState(
         ask_timeout_seconds=ask_timeout_seconds,
